@@ -6,12 +6,12 @@
 
 #include <opengl/opengl.hpp>
 
+#include <SDL2/SDL.h>
+
 #include <stdexcept>
 #include <string>
 #include <sstream>
 #include <iomanip>
-
-#include <SDL2/SDL.h>
 
 
 namespace sdl {
