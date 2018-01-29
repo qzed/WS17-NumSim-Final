@@ -17,10 +17,10 @@ namespace detail {
 class InitState {
 public:
     inline InitState();
-    ~InitState();
+    inline ~InitState();
 
-    void push(std::uint32_t flags);
-    void pop(std::uint32_t flags);
+    inline void push(std::uint32_t flags);
+    inline void pop(std::uint32_t flags);
 
 private:
     std::mutex m_mutex;
@@ -147,15 +147,15 @@ class InitGuard {
     friend auto init(std::uint32_t flags) -> InitGuard;
 
 public:
-    InitGuard(InitGuard const&) = delete;
-    InitGuard(InitGuard&&);
+    inline InitGuard(InitGuard const&) = delete;
+    inline InitGuard(InitGuard&&);
 
-    auto operator= (InitGuard const&) const -> InitGuard& = delete;
-    auto operator= (InitGuard&&) -> InitGuard&;
+    inline auto operator= (InitGuard const&) const -> InitGuard& = delete;
+    inline auto operator= (InitGuard&&) -> InitGuard&;
 
-    ~InitGuard();
+    inline ~InitGuard();
 
-    auto clone() const -> InitGuard;
+    inline auto clone() const -> InitGuard;
 
 private:
     InitGuard(std::shared_ptr<detail::InitState> state, std::uint32_t flags);
