@@ -19,7 +19,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang"
 endif()
 
 
-include_directories("src")
+include_directories("src" "thirdparty")
 
 set(src_main
     "src/main.cpp"
