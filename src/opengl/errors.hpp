@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <opengl/opengl.hpp>
+#include "opengl/opengl.hpp"
 
 #include <SDL2/SDL.h>
 
@@ -17,16 +17,16 @@
 namespace sdl {
 namespace error {
 
-class error_category : public std::error_category {
+class ErrorCategory : public std::error_category {
     inline virtual auto name()                 const noexcept -> char const* override;
     inline virtual auto message(int condition) const noexcept -> std::string override;
 };
 
-auto error_category::name() const noexcept -> char const* {
+auto ErrorCategory::name() const noexcept -> char const* {
     return "SDL2";
 }
 
-auto error_category::message(int condition) const noexcept -> std::string {
+auto ErrorCategory::message(int condition) const noexcept -> std::string {
     std::stringstream msg;
     msg << "Error code 0x" << std::hex << condition;
 
@@ -35,19 +35,19 @@ auto error_category::message(int condition) const noexcept -> std::string {
 
 
 inline auto category() noexcept -> std::error_category const& {
-    static error_category category;
+    static ErrorCategory category;
     return category;
 }
 
 }   /* namespace error */
 
 
-class exception : public std::system_error {
+class Exception : public std::system_error {
 public:
-    explicit exception(int errc)
+    explicit Exception(int errc)
         : std::system_error{errc, error::category()} {}
 
-    exception(int errc, std::string const& what)
+    Exception(int errc, std::string const& what)
         : std::system_error{errc, error::category(), what} {}
 };
 
@@ -55,7 +55,7 @@ public:
 void except(int errc) {
     if (errc < 0) {
         char const* msg = SDL_GetError();
-        throw exception{-errc, msg};
+        throw Exception{-errc, msg};
     }
 }
 
@@ -63,7 +63,7 @@ template <typename T>
 auto except_null(T* ptr) -> T* {
     if (ptr == nullptr) {
         char const* msg = SDL_GetError();
-        throw exception{1, msg};
+        throw Exception{1, msg};
     } else {
         return ptr;
     }
@@ -75,16 +75,16 @@ auto except_null(T* ptr) -> T* {
 namespace glew {
 namespace error {
 
-class error_category : public std::error_category {
+class ErrorCategory : public std::error_category {
     inline virtual auto name()                 const noexcept -> char const* override;
     inline virtual auto message(int condition) const noexcept -> std::string override;
 };
 
-auto error_category::name() const noexcept -> char const* {
+auto ErrorCategory::name() const noexcept -> char const* {
     return "GLEW";
 }
 
-auto error_category::message(int condition) const noexcept -> std::string {
+auto ErrorCategory::message(int condition) const noexcept -> std::string {
     auto err = static_cast<GLenum>(condition);
 
     std::stringstream msg;
@@ -96,26 +96,26 @@ auto error_category::message(int condition) const noexcept -> std::string {
 
 
 inline auto category() noexcept -> std::error_category const& {
-    static error_category category;
+    static ErrorCategory category;
     return category;
 }
 
 }   /* namespace error */
 
 
-class exception : public std::system_error {
+class Exception : public std::system_error {
 public:
-    explicit exception(GLenum errc)
+    explicit Exception(GLenum errc)
         : std::system_error{static_cast<int>(errc), error::category()} {}
 
-    exception(GLenum errc, std::string const& what)
+    Exception(GLenum errc, std::string const& what)
         : std::system_error{static_cast<int>(errc), error::category(), what} {}
 };
 
 
 void except(GLenum errc) {
     if (errc != GLEW_OK) {
-        throw exception{errc};
+        throw Exception{errc};
     }
 }
 
@@ -142,16 +142,16 @@ auto get_string(GLenum err) -> std::string {
 }
 
 
-class error_category : public std::error_category {
+class ErrorCategory : public std::error_category {
     inline virtual auto name()                 const noexcept -> char const* override;
     inline virtual auto message(int condition) const noexcept -> std::string override;
 };
 
-auto error_category::name() const noexcept -> char const* {
+auto ErrorCategory::name() const noexcept -> char const* {
     return "OpenGL";
 }
 
-auto error_category::message(int condition) const noexcept -> std::string {
+auto ErrorCategory::message(int condition) const noexcept -> std::string {
     auto err = static_cast<GLenum>(condition);
 
     std::stringstream msg;
@@ -162,26 +162,26 @@ auto error_category::message(int condition) const noexcept -> std::string {
 
 
 inline auto category() noexcept -> std::error_category const& {
-    static error_category category;
+    static ErrorCategory category;
     return category;
 }
 
 }   /* namespace error */
 
 
-class exception : public std::system_error {
+class Exception : public std::system_error {
 public:
-    explicit exception(GLenum errc)
+    explicit Exception(GLenum errc)
         : std::system_error{static_cast<int>(errc), error::category()} {}
 
-    exception(GLenum errc, std::string const& what)
+    Exception(GLenum errc, std::string const& what)
         : std::system_error{static_cast<int>(errc), error::category(), what} {}
 };
 
 
 void except(GLenum errc) {
     if (errc != GL_NO_ERROR) {
-        throw exception{errc};
+        throw Exception{errc};
     }
 }
 
