@@ -186,6 +186,7 @@ InitGuard::~InitGuard() {
 auto InitGuard::operator= (InitGuard&& from) -> InitGuard& {
     m_flags = from.m_flags;
     m_state = std::move(from.m_state);
+    return *this;
 }
 
 auto InitGuard::clone() const -> InitGuard {
