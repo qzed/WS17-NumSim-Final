@@ -14,8 +14,7 @@ public:
     inline auto operator= (Resource const& other) -> Resource&;
 
     inline auto data() const -> std::uint8_t const*;
-
-    inline auto len() const -> std::size_t;
+    inline auto size() const -> std::size_t;
 
     inline auto begin() const -> std::uint8_t const*;
     inline auto cbegin() const -> std::uint8_t const*;
@@ -49,7 +48,7 @@ auto Resource::data() const -> std::uint8_t const* {
     return m_data;
 }
 
-auto Resource::len() const -> std::size_t {
+auto Resource::size() const -> std::size_t {
     return m_len;
 }
 

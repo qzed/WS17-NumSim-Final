@@ -21,11 +21,22 @@ endif()
 
 add_executable(embed_resource "tools/embed_resource.cpp")
 
+add_custom_command(
+    OUTPUT "resources_shader.cpp"
+    COMMAND embed_resource -o resources_shader.cpp
+        "vis::shader::resources::fullscreen_vs" "${CMAKE_CURRENT_SOURCE_DIR}/src/vis/shader/fullscreen.vs"
+        "vis::shader::resources::debug_fs"      "${CMAKE_CURRENT_SOURCE_DIR}/src/vis/shader/debug.fs"
+    DEPENDS
+        "src/vis/shader/fullscreen.vs"
+        "src/vis/shader/debug.fs"
+)
+
 
 include_directories("src" "thirdparty")
 
 set(src_main
     "src/main.cpp"
+    "resources_shader.cpp"
 )
 
 add_executable(main ${src_main})
