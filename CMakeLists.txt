@@ -19,6 +19,9 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang"
 endif()
 
 
+add_executable(embed_resource "tools/embed_resource.cpp")
+
+
 include_directories("src" "thirdparty")
 
 set(src_main
