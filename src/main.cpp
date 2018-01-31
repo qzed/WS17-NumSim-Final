@@ -8,6 +8,7 @@
 #include "sdl/opengl/utils.hpp"
 
 #include "vis/shader/resources.hpp"
+#include "core/kernel/resources.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -90,6 +91,16 @@ int main(int argc, char** argv) try {
     properties.push_back((cl_context_properties) platform());
     properties.push_back(0);
 
+    auto cl_context = cl::Context(device, properties.data());
+
+    cl::Program::Sources sources;
+    sources.push_back(core::kernel::resources::debug_cl.to_string());
+
+    cl::Program program{cl_context, sources};
+    program.build({device});
+
+    cl::CommandQueue cl_queue{cl_context, device};
+
 
     // set-up visualization
     auto shader_vert = opengl::Shader::create(GL_VERTEX_SHADER);
@@ -109,7 +120,41 @@ int main(int argc, char** argv) try {
 
     auto vertex_array = opengl::VertexArray::create();
 
+    // generate texture
+    GLuint tex;
+    glGenTextures(1, &tex);
+
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, 128, 128, 0, GL_RG, GL_FLOAT, nullptr);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    opengl::check_error();
+
+    // generate texture sampler
+    GLuint sampler;
+    glGenSamplers(1, &sampler);
+
+    glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glSamplerParameteri(sampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glSamplerParameteri(sampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    opengl::check_error();
+
     glClearColor(0.0, 0.0, 0.0, 1.0);
+
+    // get uniform location, set to 0
+    auto loc_tex_data = glGetUniformLocation(shader_prog.handle(), "u_tex_data");
+    opengl::check_error();
+
+    shader_prog.bind();
+    glUniform1i(loc_tex_data, 0);
+    opengl::check_error();
+    shader_prog.unbind();
+
+    // create OpenCL reference to OpenGL texture
+    auto cl_image = cl::ImageGL{cl_context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, tex};
+    auto cl_req = std::vector<cl::Memory>{cl_image};
 
     bool running = true;
     while (running) {
@@ -137,13 +182,34 @@ int main(int argc, char** argv) try {
             }
         }
 
-        // render
+        glFlush();
+
+
+        // write to texture via OpenCL
+        cl_queue.enqueueAcquireGLObjects(&cl_req);
+
+        cl::Kernel simple_add{program, "write_image"};
+        simple_add.setArg(0, cl_image);
+
+        cl_queue.enqueueNDRangeKernel(simple_add, cl::NullRange, cl::NDRange{128, 128}, cl::NullRange);
+
+        cl_queue.enqueueReleaseGLObjects(&cl_req);
+        cl_queue.flush();
+
+
+        // render via OpenGL
         glClear(GL_COLOR_BUFFER_BIT);
 
         shader_prog.bind();
         vertex_array.bind();
 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glBindSampler(0, sampler);
+
         glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        glBindTexture(GL_TEXTURE_2D, 0);
 
         vertex_array.unbind();
         shader_prog.unbind();
@@ -151,6 +217,18 @@ int main(int argc, char** argv) try {
         window.swap_buffers();
         opengl::check_error();
     }
+
+
+} catch (cl::BuildError const& err) {
+    auto const& log = err.getBuildLog();
+    std::cerr << "Error: " << err.what() << "\n";
+    for (auto const& entry : log) {
+        std::cerr << "-- LOG -------------------------------------------------------------------------\n";
+        std::cout << "-- Device: " << entry.first.getInfo<CL_DEVICE_NAME>() << "\n";
+        std::cout << entry.second << "\n";
+    }
+    std::cerr << "--------------------------------------------------------------------------------\n";
+    throw err;
 
 } catch (opengl::CompileError const& err) {
     std::cerr << "Error: " << err.what() << "\n";

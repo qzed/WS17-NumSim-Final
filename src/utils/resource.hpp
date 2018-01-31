@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <string>
 
 
 namespace utils {
@@ -24,6 +25,8 @@ public:
 
     inline auto end() const -> std::uint8_t const*;
     inline auto cend() const -> std::uint8_t const*;
+
+    inline auto to_string() const -> std::string;
 
 private:
     std::uint8_t const* m_data;
@@ -69,6 +72,10 @@ auto Resource::end() const -> std::uint8_t const* {
 
 auto Resource::cend() const -> std::uint8_t const* {
     return m_data + m_len;
+}
+
+auto Resource::to_string() const -> std::string {
+    return {this->begin(), this->end()};
 }
 
 }   /* namespace utils */

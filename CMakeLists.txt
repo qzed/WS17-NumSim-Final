@@ -31,12 +31,21 @@ add_custom_command(
         "src/vis/shader/debug.fs"
 )
 
+add_custom_command(
+    OUTPUT "resources_kernel.cpp"
+    COMMAND embed_resource -o resources_kernel.cpp
+        "core::kernel::resources::debug_cl" "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/debug.cl"
+    DEPENDS
+        "src/core/kernel/debug.cl"
+)
+
 
 include_directories("src" "thirdparty")
 
 set(src_main
     "src/main.cpp"
     "resources_shader.cpp"
+    "resources_kernel.cpp"
 )
 
 add_executable(main ${src_main})
