@@ -194,7 +194,7 @@ auto InitGuard::clone() const -> InitGuard {
 }
 
 
-auto init(std::uint32_t flags) -> InitGuard {
+inline auto init(std::uint32_t flags) -> InitGuard {
     static auto state = std::make_shared<detail::InitState>();
     return InitGuard{state, flags};
 }
