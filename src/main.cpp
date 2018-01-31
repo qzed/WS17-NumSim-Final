@@ -2,6 +2,7 @@
 #include "opengl/init.hpp"
 #include "opengl/shader.hpp"
 #include "opengl/vertex_array.hpp"
+#include "opencl/opengl_interop.hpp"
 
 #include "sdl/opengl/window.hpp"
 #include "sdl/opengl/utils.hpp"
@@ -24,6 +25,59 @@ int main(int argc, char** argv) try {
     opengl::init();
     sdl::opengl::set_swap_interval(1);
 
+
+    // get OpenCL platform
+    std::vector<cl::Platform> platforms;
+    cl::Platform::get(&platforms);
+
+    cl::Platform platform;
+    for (auto const& p : platforms) {
+        auto extensions = p.getInfo<CL_PLATFORM_EXTENSIONS>();
+        if (extensions.find(opencl::opengl::EXT_CL_GL_SHARING) != std::string::npos) {
+            platform = p;
+        }
+    }
+
+    std::cout << "Using platform:\n";
+    std::cout << "  Name:       " << platform.getInfo<CL_PLATFORM_NAME>() << "\n";
+    std::cout << "  Vendor:     " << platform.getInfo<CL_PLATFORM_VENDOR>() << "\n";
+    std::cout << "  Version:    " << platform.getInfo<CL_PLATFORM_VERSION>() << "\n";
+    std::cout << "  Profile:    " << platform.getInfo<CL_PLATFORM_PROFILE>() << "\n";
+    std::cout << "  Extensions: " << platform.getInfo<CL_PLATFORM_EXTENSIONS>() << "\n";
+    std::cout << "\n";
+
+    // get OpenCL device
+    std::vector<cl::Device> devices;
+    platform.getDevices(CL_DEVICE_TYPE_GPU, &devices);
+
+    cl::Device device;
+    for (auto const& d : devices) {
+        auto extensions = d.getInfo<CL_DEVICE_EXTENSIONS>();
+        if (extensions.find(opencl::opengl::EXT_CL_GL_SHARING) != std::string::npos) {
+            device = d;
+        }
+    }
+
+    std::cout << "Using device:\n";
+    std::cout << "  Name:       " << device.getInfo<CL_DEVICE_NAME>() << "\n";
+    std::cout << "  Vendor:     " << device.getInfo<CL_DEVICE_VENDOR>() << "\n";
+    std::cout << "  Version:    " << device.getInfo<CL_DEVICE_VERSION>() << "\n";
+    std::cout << "  Profile:    " << device.getInfo<CL_DEVICE_PROFILE>() << "\n";
+    std::cout << "  Extensions: " << device.getInfo<CL_DEVICE_EXTENSIONS>() << "\n";
+    std::cout << "\n";
+
+    // create OpenCL context
+    std::vector<cl_context_properties> properties;
+    for (auto const& prop : opencl::opengl::get_context_share_properties(window)) {
+        properties.push_back(prop.type);
+        properties.push_back(prop.value);
+    }
+    properties.push_back(CL_CONTEXT_PLATFORM);
+    properties.push_back((cl_context_properties) platform());
+    properties.push_back(0);
+
+
+    // set-up visualization
     auto shader_vert = opengl::Shader::create(GL_VERTEX_SHADER);
     shader_vert.set_source(vis::shader::resources::fullscreen_vs);
     shader_vert.compile("fullscreen.vs");
