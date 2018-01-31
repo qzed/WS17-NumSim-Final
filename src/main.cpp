@@ -4,6 +4,8 @@
 #include "opengl/texture.hpp"
 #include "opengl/sampler.hpp"
 #include "opengl/vertex_array.hpp"
+
+#include "opencl/opencl.hpp"
 #include "opencl/opengl_interop.hpp"
 
 #include "sdl/opengl/window.hpp"
