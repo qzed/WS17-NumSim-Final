@@ -12,18 +12,10 @@
 #include <array>
 #include <stdexcept>
 
-#include <iostream>
 
-
-#if defined(_WIN32)
-#include <Wingdi.h>
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
 #include <OpenCL/opencl.h>
 #include <OpenGL/OpenGL.h>
-#elif defined(__linux__)
-#include <GL/glx.h>
-#else
-#error "Platform not supported"
 #endif
 
 
