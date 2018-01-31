@@ -42,9 +42,9 @@ int main(int argc, char** argv) try {
     }
 
     if (!platform()) {
-        std::cout << "No OpenCl platform with extension ";
+        std::cout << "Error: No OpenCl platform with support for extension ";
         std::cout << "`" << opencl::opengl::EXT_CL_GL_SHARING << "`";
-        std::cout << " found!.";
+        std::cout << " found.";
         return 1;
     }
 
@@ -69,9 +69,9 @@ int main(int argc, char** argv) try {
     }
 
     if (!device()) {
-        std::cout << "No OpenCl device with extension ";
+        std::cout << "Error: No OpenCL device with support for extension ";
         std::cout << "`" << opencl::opengl::EXT_CL_GL_SHARING << "`";
-        std::cout << " found!.";
+        std::cout << " found.";
         return 1;
     }
 
