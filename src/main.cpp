@@ -38,6 +38,13 @@ int main(int argc, char** argv) try {
         }
     }
 
+    if (!platform()) {
+        std::cout << "No OpenCl platform with extension ";
+        std::cout << "`" << opencl::opengl::EXT_CL_GL_SHARING << "`";
+        std::cout << " found!.";
+        return 1;
+    }
+
     std::cout << "Using platform:\n";
     std::cout << "  Name:       " << platform.getInfo<CL_PLATFORM_NAME>() << "\n";
     std::cout << "  Vendor:     " << platform.getInfo<CL_PLATFORM_VENDOR>() << "\n";
@@ -56,6 +63,13 @@ int main(int argc, char** argv) try {
         if (extensions.find(opencl::opengl::EXT_CL_GL_SHARING) != std::string::npos) {
             device = d;
         }
+    }
+
+    if (!device()) {
+        std::cout << "No OpenCl device with extension ";
+        std::cout << "`" << opencl::opengl::EXT_CL_GL_SHARING << "`";
+        std::cout << " found!.";
+        return 1;
     }
 
     std::cout << "Using device:\n";
