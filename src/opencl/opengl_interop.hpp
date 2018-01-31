@@ -47,7 +47,9 @@ inline auto get_context_share_properties(sdl::opengl::Window const& window)
     CGLContextObj ctx = CGLGetCurrentContext();
     CGLShareGroupObj grp = CGLGetShareGroup(ctx);
 
-    return {{CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE, grp}};
+    return {{
+        ContextPropertyKv{CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE, (cl_context_properties) grp}
+    }};
 }
 
 
@@ -67,26 +69,28 @@ inline auto get_context_share_properties(sdl::opengl::Window const& window)
 
 #if defined(SDL_VIDEO_DRIVER_WINDOWS)
     if (info.subsystem == SDL_SYSWM_WINDOWS) {
-        ContextPropertyKv{CL_GL_CONTEXT_KHR, (cl_context_properties) SDL_GL_GetCurrentContext()},
-        ContextPropertyKv{CL_EGL_DISPLAY_KHR, (cl_context_properties) info.info.win.hdc}
+        return {{
+            ContextPropertyKv{CL_GL_CONTEXT_KHR, (cl_context_properties) SDL_GL_GetCurrentContext()},
+            ContextPropertyKv{CL_EGL_DISPLAY_KHR, (cl_context_properties) info.info.win.hdc}
+        }};
     }
 #endif
 
 #if defined(SDL_VIDEO_DRIVER_X11)
     if (info.subsystem == SDL_SYSWM_X11) {
-        return {
+        return {{
             ContextPropertyKv{CL_GL_CONTEXT_KHR, (cl_context_properties) SDL_GL_GetCurrentContext()},
             ContextPropertyKv{CL_GLX_DISPLAY_KHR, (cl_context_properties) info.info.x11.display}
-        };
+        }};
     }
 #endif
 
 #if defined(SDL_VIDEO_DRIVER_WAYLAND)
     if (info.subsystem == SDL_SYSWM_WAYLAND) {
-        return {
+        return {{
             ContextPropertyKv{CL_GL_CONTEXT_KHR, (cl_context_properties) SDL_GL_GetCurrentContext()},
             ContextPropertyKv{CL_EGL_DISPLAY_KHR, (cl_context_properties) info.info.wl.display}
-        };
+        }};
     }
 #endif
 
