@@ -87,6 +87,9 @@ public:
     inline auto get_link_status() const -> bool;
     inline auto get_info_log() const -> std::string;
 
+    inline auto get_uniform_location(GLchar const* name) -> GLint;
+    inline void set_uniform(GLint loc, GLint val);
+
 private:
     GLuint m_handle;
 };
@@ -277,6 +280,21 @@ auto Program::get_info_log() const -> std::string {
     buffer.resize(actual);
 
     return std::string{buffer.begin(), buffer.end()};
+}
+
+auto Program::get_uniform_location(GLchar const* name) -> GLint {
+    GLint loc = glGetUniformLocation(m_handle, name);
+
+    if (loc == -1) {
+        opengl::check_error();
+        throw Exception{GL_INVALID_VALUE};
+    }
+
+    return loc;
+}
+
+void Program::set_uniform(GLint loc, GLint val) {
+    glUniform1i(loc, val);
 }
 
 }    /* namespace opengl */

@@ -1,6 +1,8 @@
 #include "opengl/opengl.hpp"
 #include "opengl/init.hpp"
 #include "opengl/shader.hpp"
+#include "opengl/texture.hpp"
+#include "opengl/sampler.hpp"
 #include "opengl/vertex_array.hpp"
 #include "opencl/opengl_interop.hpp"
 
@@ -121,39 +123,27 @@ int main(int argc, char** argv) try {
     auto vertex_array = opengl::VertexArray::create();
 
     // generate texture
-    GLuint tex;
-    glGenTextures(1, &tex);
-
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, 128, 128, 0, GL_RG, GL_FLOAT, nullptr);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    opengl::check_error();
+    auto texture = opengl::Texture::create(GL_TEXTURE_2D);
+    texture.bind();
+    texture.image_2d(0, GL_RG32F, {128, 128}, GL_RG, GL_FLOAT, nullptr);
+    texture.unbind();
 
     // generate texture sampler
-    GLuint sampler;
-    glGenSamplers(1, &sampler);
+    auto sampler = opengl::Sampler::create();
+    sampler.set(GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    sampler.set(GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    sampler.set(GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    sampler.set(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glSamplerParameteri(sampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glSamplerParameteri(sampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    opengl::check_error();
+    // get uniform location, set to 0 (texture unit)
+    shader_prog.bind();
+    shader_prog.set_uniform(shader_prog.get_uniform_location("u_tex_data"), 0);
+    shader_prog.unbind();
 
     glClearColor(0.0, 0.0, 0.0, 1.0);
 
-    // get uniform location, set to 0
-    auto loc_tex_data = glGetUniformLocation(shader_prog.handle(), "u_tex_data");
-    opengl::check_error();
-
-    shader_prog.bind();
-    glUniform1i(loc_tex_data, 0);
-    opengl::check_error();
-    shader_prog.unbind();
-
     // create OpenCL reference to OpenGL texture
-    auto cl_image = cl::ImageGL{cl_context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, tex};
+    auto cl_image = cl::ImageGL{cl_context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, texture.handle()};
     auto cl_req = std::vector<cl::Memory>{cl_image};
 
     bool running = true;
@@ -202,15 +192,12 @@ int main(int argc, char** argv) try {
 
         shader_prog.bind();
         vertex_array.bind();
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, tex);
-        glBindSampler(0, sampler);
+        texture.bind(0);
+        sampler.bind(0);
 
         glDrawArrays(GL_TRIANGLES, 0, 3);
 
-        glBindTexture(GL_TEXTURE_2D, 0);
-
+        texture.unbind();
         vertex_array.unbind();
         shader_prog.unbind();
 
