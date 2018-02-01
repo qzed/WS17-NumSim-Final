@@ -1,3 +1,5 @@
+#include "types.hpp"
+
 #include "opengl/opengl.hpp"
 #include "opengl/init.hpp"
 #include "opengl/shader.hpp"
@@ -11,6 +13,7 @@
 #include "sdl/opengl/window.hpp"
 #include "sdl/opengl/utils.hpp"
 
+#include "vis/visualizer.hpp"
 #include "vis/shader/resources.hpp"
 #include "core/kernel/resources.hpp"
 
@@ -18,8 +21,12 @@
 #include <iomanip>
 
 
+const ivec2 INITIAL_SCREEN_SIZE = {800, 800};
+const ivec2 SIMULATION_SIZE = {32, 32};
+
+
 int main(int argc, char** argv) try {
-    auto window = sdl::opengl::Window::builder("Numerical Simulations Course 2017/18", 800, 600)
+    auto window = sdl::opengl::Window::builder("Numerical Simulations Course 2017/18", INITIAL_SCREEN_SIZE)
         .set(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
         .set(SDL_GL_CONTEXT_MINOR_VERSION, 3)
         .set(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE)
@@ -30,6 +37,8 @@ int main(int argc, char** argv) try {
     opengl::init();
     sdl::opengl::set_swap_interval(1);
 
+    auto visualizer = vis::Visualizer{};
+    visualizer.initialize(INITIAL_SCREEN_SIZE, SIMULATION_SIZE);
 
     // get OpenCL platform
     std::vector<cl::Platform> platforms;
@@ -105,47 +114,11 @@ int main(int argc, char** argv) try {
 
     cl::CommandQueue cl_queue{cl_context, device};
 
-
-    // set-up visualization
-    auto shader_vert = opengl::Shader::create(GL_VERTEX_SHADER);
-    shader_vert.set_source(vis::shader::resources::fullscreen_vs);
-    shader_vert.compile("fullscreen.vs");
-
-    auto shader_frag = opengl::Shader::create(GL_FRAGMENT_SHADER);
-    shader_frag.set_source(vis::shader::resources::debug_fs);
-    shader_frag.compile("debug.fs");
-
-    auto shader_prog = opengl::Program::create();
-    shader_prog.attach(shader_vert);
-    shader_prog.attach(shader_frag);
-    shader_prog.link();
-    shader_prog.detach(shader_frag);
-    shader_prog.detach(shader_vert);
-
-    auto vertex_array = opengl::VertexArray::create();
-
-    // generate texture
-    auto texture = opengl::Texture::create(GL_TEXTURE_2D);
-    texture.bind();
-    texture.image_2d(0, GL_RG32F, {128, 128}, GL_RG, GL_FLOAT, nullptr);
-    texture.unbind();
-
-    // generate texture sampler
-    auto sampler = opengl::Sampler::create();
-    sampler.set(GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    sampler.set(GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    sampler.set(GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    sampler.set(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    // get uniform location, set to 0 (texture unit)
-    shader_prog.bind();
-    shader_prog.set_uniform(shader_prog.get_uniform_location("u_tex_data"), 0);
-    shader_prog.unbind();
-
     glClearColor(0.0, 0.0, 0.0, 1.0);
 
     // create OpenCL reference to OpenGL texture
-    auto cl_image = cl::ImageGL{cl_context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, texture.handle()};
+    auto const& texture = visualizer.cl_target_texture();
+    auto cl_image = cl::ImageGL{cl_context, CL_MEM_WRITE_ONLY, texture.target(), 0, texture.handle()};
     auto cl_req = std::vector<cl::Memory>{cl_image};
 
     bool running = true;
@@ -156,7 +129,6 @@ int main(int argc, char** argv) try {
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {   // received on SIGINT or when all windows have been closed
                 running = false;
-                std::cout << "Terminating\n";
             }
 
             else if (e.type == SDL_WINDOWEVENT && e.window.windowID == window.id()) {
@@ -168,9 +140,13 @@ int main(int argc, char** argv) try {
             }
 
             else if (e.type == SDL_KEYDOWN && e.key.windowID == window.id()) {
-                std::cout << "Key pressed: "
-                    << "0x" << std::hex << std::setfill('0') << std::setw(2) << e.key.keysym.sym
-                    << "\n";
+                if (e.key.keysym.sym == SDLK_l) {
+                    visualizer.set_sampler(vis::SamplerType::Linear);
+                } else if (e.key.keysym.sym == SDLK_n) {
+                    visualizer.set_sampler(vis::SamplerType::Nearest);
+                } else if (e.key.keysym.sym == SDLK_q) {
+                    running = false;
+                }
             }
         }
 
@@ -183,7 +159,8 @@ int main(int argc, char** argv) try {
         cl::Kernel simple_add{program, "write_image"};
         simple_add.setArg(0, cl_image);
 
-        cl_queue.enqueueNDRangeKernel(simple_add, cl::NullRange, cl::NDRange{128, 128}, cl::NullRange);
+        auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+        cl_queue.enqueueNDRangeKernel(simple_add, cl::NullRange, range, cl::NullRange);
 
         cl_queue.enqueueReleaseGLObjects(&cl_req);
         cl_queue.flush();
@@ -191,17 +168,7 @@ int main(int argc, char** argv) try {
 
         // render via OpenGL
         glClear(GL_COLOR_BUFFER_BIT);
-
-        shader_prog.bind();
-        vertex_array.bind();
-        texture.bind(0);
-        sampler.bind(0);
-
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-
-        texture.unbind();
-        vertex_array.unbind();
-        shader_prog.unbind();
+        visualizer.draw();
 
         window.swap_buffers();
         opengl::check_error();

@@ -7,8 +7,17 @@ out vec4 f_color;
 
 uniform sampler2D u_tex_data;
 
+uniform float u_norm_min = 0.0;
+uniform float u_norm_max = 1.4;
+
+
+vec3 cubehelix(float start, float rotations, float hue, float gamma, float value);
+
+float normscale(float val) {
+    return (val - u_norm_min) / (u_norm_max - u_norm_min);
+}
 
 void main() {
-    vec2 d = texture(u_tex_data, v_texcoord).rg;
-    f_color = vec4(d.rg, 0.0, 1.0);
+    float datapoint = normscale(texture(u_tex_data, v_texcoord).r);
+    f_color = vec4(cubehelix(0.5, -1.5, 1.0, 1.0, datapoint), 1.0);
 }

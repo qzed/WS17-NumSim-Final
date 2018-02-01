@@ -1,5 +1,7 @@
 #pragma once
 
+#include "types.hpp"
+
 #include "opengl/opengl.hpp"
 #include "opengl/errors.hpp"
 
@@ -41,7 +43,7 @@ private:
 
 class Window {
 public:
-    static inline auto builder(std::string title, int width, int height) -> WindowBuilder;
+    static inline auto builder(std::string title, ivec2 size) -> WindowBuilder;
 
     inline Window(sdl::InitGuard init, SDL_Window* handle, Context context);
     inline Window(Window const&) = delete;
@@ -123,8 +125,8 @@ auto Context::operator* () const -> SDL_GLContext {
 }
 
 
-auto Window::builder(std::string title, int width, int height) -> WindowBuilder {
-    return WindowBuilder{std::move(title), width, height};
+auto Window::builder(std::string title, ivec2 size) -> WindowBuilder {
+    return WindowBuilder{std::move(title), size.x, size.y};
 }
 
 Window::Window(sdl::InitGuard init, SDL_Window* handle, Context context)
