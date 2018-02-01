@@ -18,6 +18,7 @@ class Texture {
 public:
     inline static auto create(GLenum target) -> Texture;
 
+    inline Texture();
     inline Texture(GLenum type, GLuint handle);
     inline Texture(Texture const& other) = delete;
     inline Texture(Texture&& other);
@@ -27,7 +28,7 @@ public:
     inline auto operator= (Texture&& other) -> Texture&;
 
     inline auto handle() const -> GLuint;
-    inline auto type() const -> GLenum;
+    inline auto target() const -> GLenum;
 
     inline void image_2d(GLint level, GLint internal_format, Extent2d size, GLenum format,
                          GLenum type, const void* pixels) const;
@@ -51,6 +52,9 @@ auto Texture::create(GLenum target) -> Texture {
     return {target, handle};
 }
 
+Texture::Texture()
+    : m_target{0}, m_handle{0} {}
+
 Texture::Texture(GLenum type, GLuint handle)
     : m_target{type}, m_handle{handle} {}
 
@@ -73,7 +77,7 @@ auto Texture::handle() const -> GLuint {
     return m_handle;
 }
 
-auto Texture::type() const -> GLenum {
+auto Texture::target() const -> GLenum {
     return m_target;
 }
 

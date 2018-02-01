@@ -12,6 +12,7 @@ class VertexArray {
 public:
     inline static auto create() -> VertexArray;
 
+    inline VertexArray();
     inline explicit VertexArray(GLuint handle);
     inline VertexArray(VertexArray const& other) = delete;
     inline VertexArray(VertexArray&& other);
@@ -41,6 +42,9 @@ auto VertexArray::create() -> VertexArray {
 
     return VertexArray{vao};
 }
+
+VertexArray::VertexArray()
+    : m_handle{0} {}
 
 VertexArray::VertexArray(GLuint handle)
     : m_handle{handle} {}

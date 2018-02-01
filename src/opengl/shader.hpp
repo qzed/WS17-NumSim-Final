@@ -39,6 +39,7 @@ class Shader {
 public:
     inline static auto create(GLenum type) -> Shader;
 
+    inline Shader();
     inline Shader(GLenum type, GLuint handle);
     inline Shader(Shader const& other) = delete;
     inline Shader(Shader&& other);
@@ -52,6 +53,7 @@ public:
 
     inline auto set_source(std::string const& source) const;
     inline auto set_source(utils::Resource const& source) const;
+    inline auto set_sources(std::vector<utils::Resource const*> const& source) const;
 
     inline void compile(std::string const& name = "") const;
     inline auto get_compile_status() const -> bool;
@@ -67,6 +69,7 @@ class Program {
 public:
     inline static auto create() -> Program;
 
+    inline Program();
     inline explicit Program(GLuint handle);
     inline Program(Program const& other) = delete;
     inline Program(Program&& other);
@@ -129,6 +132,9 @@ auto Shader::create(GLenum type) -> Shader {
     return {type, shader};
 }
 
+Shader::Shader()
+    : m_type{0}, m_handle{0} {}
+
 Shader::Shader(GLenum type, GLuint handle)
     : m_type{type}, m_handle{handle} {}
 
@@ -157,16 +163,28 @@ auto Shader::type() const -> GLenum {
 
 auto Shader::set_source(std::string const& source) const {
     GLchar const* data = source.data();
-    GLint length = source.length();
+    GLint length = static_cast<GLint>(source.size());
 
     glShaderSource(m_handle, 1, &data, &length);
 }
 
 auto Shader::set_source(utils::Resource const& source) const {
     GLchar const* data = reinterpret_cast<GLchar const*>(source.data());
-    GLint length = source.size();
+    GLint length = static_cast<GLint>(source.size());
 
     glShaderSource(m_handle, 1, &data, &length);
+}
+
+auto Shader::set_sources(std::vector<utils::Resource const*> const& sources) const {
+    std::vector<GLchar const*> data;
+    std::vector<GLint> len;
+
+    for (auto const resource : sources) {
+        data.push_back(reinterpret_cast<GLchar const*>(resource->data()));
+        len.push_back(static_cast<GLint>(resource->size()));
+    }
+
+    glShaderSource(m_handle, data.size(), data.data(), len.data());
 }
 
 void Shader::compile(std::string const& name) const {
@@ -214,6 +232,9 @@ auto Program::create() -> Program {
 
     return Program{handle};
 }
+
+Program::Program()
+    : m_handle{0} {}
 
 Program::Program(GLuint handle)
     : m_handle{handle} {}

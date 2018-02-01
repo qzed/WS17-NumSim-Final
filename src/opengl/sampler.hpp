@@ -12,6 +12,7 @@ class Sampler {
 public:
     inline static auto create() -> Sampler;
 
+    inline Sampler();
     inline Sampler(GLuint handle);
     inline Sampler(Sampler const& other) = delete;
     inline Sampler(Sampler&& other);
@@ -40,6 +41,9 @@ auto Sampler::create() -> Sampler {
 
     return {handle};
 }
+
+Sampler::Sampler()
+    : m_handle{0} {}
 
 Sampler::Sampler(GLuint handle)
     : m_handle{handle} {}
