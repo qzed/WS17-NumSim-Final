@@ -21,11 +21,33 @@ endif()
 
 add_executable(embed_resource "tools/embed_resource.cpp")
 
+add_custom_command(
+    OUTPUT "resources_shader.cpp"
+    COMMAND embed_resource -o resources_shader.cpp
+        "vis::shader::resources::fullscreen_vs"  "${CMAKE_CURRENT_SOURCE_DIR}/src/vis/shader/fullscreen.vs"
+        "vis::shader::resources::cubehelix_glsl" "${CMAKE_CURRENT_SOURCE_DIR}/src/vis/shader/cubehelix.glsl"
+        "vis::shader::resources::map_fs"         "${CMAKE_CURRENT_SOURCE_DIR}/src/vis/shader/map.fs"
+    DEPENDS
+        "src/vis/shader/fullscreen.vs"
+        "src/vis/shader/cubehelix.glsl"
+        "src/vis/shader/map.fs"
+)
+
+add_custom_command(
+    OUTPUT "resources_kernel.cpp"
+    COMMAND embed_resource -o resources_kernel.cpp
+        "core::kernel::resources::debug_cl" "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/debug.cl"
+    DEPENDS
+        "src/core/kernel/debug.cl"
+)
+
 
 include_directories("src" "thirdparty")
 
 set(src_main
     "src/main.cpp"
+    "resources_shader.cpp"
+    "resources_kernel.cpp"
 )
 
 add_executable(main ${src_main})
