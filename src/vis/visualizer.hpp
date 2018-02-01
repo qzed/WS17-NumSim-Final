@@ -70,7 +70,7 @@ void Visualizer::initialize(ivec2 screen, ivec2 data_size) {
     m_screen_size = screen;
     m_data_size = data_size;
 
-    // create emplty vertex-array
+    // create empty vertex-array
     auto vao = opengl::VertexArray::create();
 
     // create debug shader
