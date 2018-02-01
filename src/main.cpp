@@ -117,7 +117,7 @@ int main(int argc, char** argv) try {
     glClearColor(0.0, 0.0, 0.0, 1.0);
 
     // create OpenCL reference to OpenGL texture
-    auto const& texture = visualizer.cl_target_texture();
+    auto const& texture = visualizer.get_cl_target_texture();
     auto cl_image = cl::ImageGL{cl_context, CL_MEM_WRITE_ONLY, texture.target(), 0, texture.handle()};
     auto cl_req = std::vector<cl::Memory>{cl_image};
 

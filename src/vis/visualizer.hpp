@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.hpp"
+#include "utils/cached.hpp"
 
 #include "opengl/vertex_array.hpp"
 #include "opengl/shader.hpp"
@@ -13,8 +14,8 @@
 namespace vis {
 
 enum class SamplerType {
-    Nearest = 0,
-    Linear = 1,
+    Nearest,
+    Linear,
 };
 
 
@@ -35,7 +36,11 @@ public:
     inline void set_sampler(SamplerType sampler);
     inline auto get_sampler() const -> SamplerType;
 
-    inline auto cl_target_texture() const -> opengl::Texture const&;
+    inline auto get_cl_target_texture() const -> opengl::Texture const&;
+
+    inline void set_data_range(real_t min, real_t max);
+    inline auto get_data_range_min();
+    inline auto get_data_range_max();
 
 private:
     ivec2 m_screen_size;
@@ -47,7 +52,14 @@ private:
     opengl::Sampler m_sampler_nearest;
     opengl::Sampler m_sampler_linear;
 
+    GLuint m_shader_loc_tex_data;
+    GLuint m_shader_loc_norm_min;
+    GLuint m_shader_loc_norm_max;
+
     SamplerType m_sampler_type;
+
+    utils::Cached<real_t> m_shader_u_norm_min;
+    utils::Cached<real_t> m_shader_u_norm_max;
 };
 
 
@@ -68,7 +80,7 @@ void Visualizer::initialize(ivec2 screen, ivec2 data_size) {
 
     auto shader_frag = opengl::Shader::create(GL_FRAGMENT_SHADER);
     shader_frag.set_sources({
-        &vis::shader::resources::debug_fs,
+        &vis::shader::resources::map_fs,
         &vis::shader::resources::cubehelix_glsl,
     });
     shader_frag.compile("debug.fs");
@@ -99,9 +111,14 @@ void Visualizer::initialize(ivec2 screen, ivec2 data_size) {
     sampler_linear.set(GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     sampler_linear.set(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    // set uniform
+    // get uniform locations
+    GLint loc_tex_data = shader.get_uniform_location("u_tex_data");
+    GLint loc_norm_min = shader.get_uniform_location("u_norm_min");
+    GLint loc_norm_max = shader.get_uniform_location("u_norm_max");
+
+    // set texture unit in shader
     shader.bind();
-    shader.set_uniform(shader.get_uniform_location("u_tex_data"), 0);
+    shader.set_uniform(loc_tex_data, 0);
     shader.unbind();
 
     // update
@@ -110,6 +127,13 @@ void Visualizer::initialize(ivec2 screen, ivec2 data_size) {
     m_texture = std::move(texture);
     m_sampler_nearest = std::move(sampler_nearest);
     m_sampler_linear = std::move(sampler_linear);
+
+    m_shader_loc_tex_data = loc_tex_data;
+    m_shader_loc_norm_min = loc_norm_min;
+    m_shader_loc_norm_max = loc_norm_max;
+
+    m_shader_u_norm_min = 0.0f;
+    m_shader_u_norm_max = 1.0f;
 }
 
 void Visualizer::resize(ivec2 screen) {
@@ -126,6 +150,13 @@ void Visualizer::draw() {
     }();
 
     m_shader.bind();
+    m_shader_u_norm_min.when_dirty([&](real_t val) {
+        m_shader.set_uniform(m_shader_loc_norm_min, static_cast<GLfloat>(val));
+    });
+    m_shader_u_norm_max.when_dirty([&](real_t val) {
+        m_shader.set_uniform(m_shader_loc_norm_max, static_cast<GLfloat>(val));
+    });
+
     m_vao.bind();
     m_texture.bind(0);
     active_sampler.bind(0);
@@ -145,8 +176,21 @@ auto Visualizer::get_sampler() const -> SamplerType {
     return m_sampler_type;
 }
 
-auto Visualizer::cl_target_texture() const -> opengl::Texture const& {
+auto Visualizer::get_cl_target_texture() const -> opengl::Texture const& {
     return m_texture;
+}
+
+void Visualizer::set_data_range(real_t min, real_t max) {
+    m_shader_u_norm_min = min;
+    m_shader_u_norm_max = max;
+}
+
+auto Visualizer::get_data_range_min() {
+    return m_shader_u_norm_min.get();
+}
+
+auto Visualizer::get_data_range_max() {
+    return m_shader_u_norm_max.get();
 }
 
 }   /* namespace vis */

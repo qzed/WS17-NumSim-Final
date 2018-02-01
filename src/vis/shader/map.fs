@@ -1,4 +1,7 @@
-//! Fragment shader for debugging purposes.
+//! Main fragment shader.
+//!
+//! Takes single-component texture data as input, performs normalization, and
+//! maps the resulting value to color using a color map.
 
 #version 330 core
 
@@ -8,7 +11,7 @@ out vec4 f_color;
 uniform sampler2D u_tex_data;
 
 uniform float u_norm_min = 0.0;
-uniform float u_norm_max = 1.4;
+uniform float u_norm_max = 1.0;
 
 
 vec3 cubehelix(float start, float rotations, float hue, float gamma, float value);

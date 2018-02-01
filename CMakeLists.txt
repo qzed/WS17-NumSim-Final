@@ -26,11 +26,11 @@ add_custom_command(
     COMMAND embed_resource -o resources_shader.cpp
         "vis::shader::resources::fullscreen_vs"  "${CMAKE_CURRENT_SOURCE_DIR}/src/vis/shader/fullscreen.vs"
         "vis::shader::resources::cubehelix_glsl" "${CMAKE_CURRENT_SOURCE_DIR}/src/vis/shader/cubehelix.glsl"
-        "vis::shader::resources::debug_fs"       "${CMAKE_CURRENT_SOURCE_DIR}/src/vis/shader/debug.fs"
+        "vis::shader::resources::map_fs"         "${CMAKE_CURRENT_SOURCE_DIR}/src/vis/shader/map.fs"
     DEPENDS
         "src/vis/shader/fullscreen.vs"
         "src/vis/shader/cubehelix.glsl"
-        "src/vis/shader/debug.fs"
+        "src/vis/shader/map.fs"
 )
 
 add_custom_command(
