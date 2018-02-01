@@ -11,7 +11,7 @@
 //! - rotations: the number of rotations in color.
 //! - hue:       controls the saturation.
 //! - gamma:     can be used to emphasize low (gamma < 1) or high (gamma > 1) intensity values.
-//! - value:     the value to be mapped.
+//! - value:     the value to be mapped (between 0.0 and 1.0).
 //!
 //! Known-good values for the colormap (as [start, rotations, hue]):
 //! - Official default:     [+0.5, -1.5, +1.0]
