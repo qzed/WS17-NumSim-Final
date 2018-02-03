@@ -1,6 +1,3 @@
-// TODO: check everything
-
-
 //! Kernels for boundary conditions.
 //!
 //!
@@ -57,7 +54,7 @@
 //!   Other combinations are not allowed.
 //!
 //!
-//! Important: Outer boundary cells must not have neigbor-is-fluid bits set
+//! Important: Outer boundary cells must not have neighbor-is-fluid bits set
 //! for their respective boundary!
 //!
 
@@ -73,7 +70,7 @@
 #define BC_MASK_SELF_HORZ               0b00000100
 #define BC_MASK_SELF_TYPE               0b00000011
 
-#define BC_TYPE_NOSLIP                  0b00000000
+#define BC_TYPE_NOSLIP                  0b00000000      // Fluid, NoSlip
 #define BC_TYPE_VELOCITY                0b00000001      // Inflow, InflowHoriz, InflowVert
 #define BC_TYPE_PRESSURE                0b00000010      // SlipHoriz, SlipVert, Outflow
 
@@ -106,43 +103,44 @@
 __kernel void set_boundary_u(
     __read_write __global float* u,     // (n + 3) * (m + 2)
     __read_only __global uchar b,       // (n + 2) * (m + 2)
-    __read_only int u_size_x,
-    __read_only int b_size_x,
     __read_only float u_in
 ) {
-    int2 pos = (int2)(get_global_id(0), get_global_id(1));
+    const int2 pos = (int2)(get_global_id(0), get_global_id(1));
     // assumes: pos.x >= 0 && pos.x <= (len - 1) && pos.y >= 0 && pos.y <= (len - 1)
     // with len.x = n + 2, len.y = m + 2
     // NOTE: assumes pos is valid for b
 
+    const int b_size_x = get_global_size(0);        // equals n + 2 in doc above
+    const int u_size_x = b_size_x + 1;
+
     // load boundary type
-    uchar b_cell = b[INDEX(pos.x, pos.y, b_size_x)];
-    uchar b_self = b_cell & BC_MASK_SELF;
+    const uchar b_cell = b[INDEX(pos.x, pos.y, size_x)];
+    const uchar b_self = b_cell & BC_MASK_SELF;
 
     // get orientation of boundary
-    int2 u_pos = (int2)(pos.x + 1, pos.y);      // handle additional cells for domain subdivision
+    const int2 u_pos = (int2)(pos.x + 1, pos.y);    // handle additional cells for domain subdivision
     int2 u_pos_inner;
-    uchar orientation;
+    bool on_boundary;
 
     // u on left boundary
     if (b_self != BC_SELF_FLUID && BC_IS_NEIGHBOR_RIGHT_FLUID(b_cell)) {
         u_pos_inner = (int2)(u_pos.x + 1, u_pos.y);
-        orientation = BC_MASK_SELF_VERT;
+        on_boundary = true;
 
     // u on right boundary
     } else if (b_self == BC_SELF_FLUID && !BC_IS_NEIGHBOR_RIGHT_FLUID(b_cell)) {
         u_pos_inner = (int2)(u_pos.x - 1, u_pos.y);
-        orientation = BC_MASK_SELF_VERT;
+        on_boundary = true;
 
     // u below bottom boundary
     } else if (b_self != BC_SELF_FLUID && BC_IS_NEIGHBOR_TOP_FLUID(b_cell)) {
         u_pos_inner = (int2)(u_pos.x, u_pos.y + 1);
-        orientation = BC_MASK_SELF_HORZ;
+        on_boundary = false;
 
     // u above top boundary
     } else if (b_self != BC_SELF_FLUID && BC_IS_NEIGHBOR_BELOW_FLUID(b_cell)) {
         u_pos_inner = (int2)(u_pos.x, u_pos.y - 1);
-        orientation = BC_MASK_SELF_HORZ;
+        on_boundary = false;
 
     // u is solid cell fully enclosed by other solid cells
     } else if (b_self != BC_SELF_FLUID) {
@@ -156,7 +154,7 @@ __kernel void set_boundary_u(
 
     // velocity-based inflow/outflow in horizontal direction
     if (BC_MASKED_EQUALS(b_self, BC_TYPE_VELOCITY | BC_MASK_SELF_HORZ)) {
-        if (orientation == BC_MASK_SELF_VERT) {
+        if (on_boundary) {
             u[INDEX(u_pos.x, u_pos.y, u_size_x)] = u_in;
         } else {
             float u_inner = u[INDEX(u_pos_inner.x, u_pos_inner.y, u_size_x)];
@@ -170,7 +168,7 @@ __kernel void set_boundary_u(
 
     // boundary is no-slip w.r.t. horizontal flow
     } else {
-        if (orientation == BC_MASK_SELF_VERT) {
+        if (on_boundary) {
             u[INDEX(u_pos.x, u_pos.y, u_size_x)] = 0.0;
         } else {
             float u_inner = u[INDEX(u_pos_inner.x, u_pos_inner.y, u_size_x)];
@@ -183,47 +181,48 @@ __kernel void set_boundary_u(
 __kernel void set_boundary_v(
     __read_write __global float* v,     // (n + 2) + (m + 3)
     __read_only __global uchar b,       // (n + 2) * (m + 2)
-    __read_only int v_size_x,
-    __read_only int b_size_x,
     __read_only float v_in
 ) {
-    int2 pos = (int2)(get_global_id(0), get_global_id(1));
+    const int2 pos = (int2)(get_global_id(0), get_global_id(1));
     // assumes: pos.x >= 0 && pos.x <= (len - 1) && pos.y >= 0 && pos.y <= (len - 1)
     // with len.x = n + 2, len.y = m + 2
     // NOTE: pos is valid for b
 
+    const int b_size_x = get_global_size(0);        // equals n + 2 in doc above
+    const int v_size_x = b_size_x;
+
     // load boundary type
-    uchar b_cell = b[INDEX(pos.x, pos.y, b_size_x)];
-    uchar b_self = b_cell & BC_MASK_SELF;
+    const uchar b_cell = b[INDEX(pos.x, pos.y, b_size_x)];
+    const uchar b_self = b_cell & BC_MASK_SELF;
 
     // get orientation of boundary
-    int2 v_pos = (int2)(pos.x, pos.y + 1);      // handle additional cells for domain subdivision
+    const int2 v_pos = (int2)(pos.x, pos.y + 1);    // handle additional cells for domain subdivision
     int2 v_pos_inner;
-    uchar orientation;
+    bool on_boundary;
 
     // v on bottom boundary
     if (b_self != BC_SELF_FLUID && BC_IS_NEIGHBOR_TOP_FLUID(b_cell)) {
         v_pos_inner = (int2)(v_pos.x, v_pos.y + 1);
-        orientation = BC_MASK_SELF_HORZ;
+        on_boundary = true;
 
     // v on top boundary
     } else if (b_self == BC_SELF_FLUID && !BC_IS_NEIGHBOR_TOP_FLUID(b_cell)) {
         v_pos_inner = (int2)(v_pos.x, v_pos.y - 1);
-        orientation = BC_MASK_SELF_HORZ;
+        on_boundary = true;
 
     // v left of left boundary
     } else if (b_self != BC_SELF_FLUID && BC_IS_NEIGHBOR_RIGHT_FLUID(b_cell)) {
         v_pos_inner = (int2)(v_pos.x + 1, v_pos.y);
-        orientation = BC_MASK_SELF_VERT;
+        on_boundary = false;
 
     // v right of right boundary
     } else if (b_self != BC_SELF_FLUID && BC_IS_NEIGHBOR_LEFT_FLUID(b_cell)) {
         v_pos_inner = (int2)(v_pos.x - 1, v_pos.y);
-        orientation = BC_MASK_SELF_VERT;
+        on_boundary = false;
 
     // v is solid cell fully enclosed by other solid cells
     } else if (b_self != BC_SELF_FLUID) {
-        u[INDEX(v_pos.x, v_pos.y, v_size_x)] = 0.0;
+        u[INDEX(v_pos.x, v_pos.y, b_size_x)] = 0.0;
         return;
 
     // v is fluid cell fully enclosed by other fluid cells
@@ -233,7 +232,7 @@ __kernel void set_boundary_v(
 
     // velocity-based inflow/outflow in vertical direction
     if (BC_MASKED_EQUALS(b_self, BC_TYPE_VELOCITY | BC_MASK_SELF_VERT)) {
-        if (orientation == BC_MASK_SELF_HORZ) {
+        if (on_boundary) {
             v[INDEX(v_pos.x, v_pos.y, v_size_x)] = v_in;
         } else {
             float v_inner = v[INDEX(v_pos_inner.x, v_pos_inner.y, v_size_x)];
@@ -247,7 +246,7 @@ __kernel void set_boundary_v(
 
     // boundary is no-slip w.r.t. vertical flow
     } else {
-        if (orientation == BC_MASK_SELF_HORZ) {
+        if (on_boundary) {
             v[INDEX(v_pos.x, v_pos.y, v_size_x)] = 0.0;
         } else {
             float v_inner = v[INDEX(v_pos_inner.x, v_pos_inner.y, v_size_x)];
@@ -260,16 +259,17 @@ __kernel void set_boundary_v(
 __kernel void set_boundary_p(
     __read_write __global float* p,     // (n + 2) * (m + 2)
     __read_only __global uchar b,       // (n + 2) * (m + 2)
-    __read_only int size_x,
     __read_only float p_in,
 ) {
-    int2 pos = (int2)(get_global_id(0), get_global_id(1));
+    const int2 pos = (int2)(get_global_id(0), get_global_id(1));
     // assumes: pos.x >= 0 && pos.x <= (len - 1) && pos.y >= 0 && pos.y <= (len - 1)
     // with len.x = n + 2, len.y = m + 2
 
+    const int size_x = get_global_size(0);    // equals n + 2 in doc above
+
     // load boundary type
-    uchar b_cell = b[INDEX(pos.x, pos.y, size_x)];
-    uchar b_self = b_cell & BC_MASK_SELF;
+    const uchar b_cell = b[INDEX(pos.x, pos.y, size_x)];
+    const uchar b_self = b_cell & BC_MASK_SELF;
 
     // don't do anything if this is a fluid cell
     if (b_self == BC_SELF_FLUID) {
@@ -281,57 +281,57 @@ __kernel void set_boundary_p(
 
     // left of left boundary
     if (BC_IS_NEIGHBOR_RIGHT_FLUID(b_cell)) {
-        float p_right = p[INDEX(pos.x + 1, pos.y, size_x)];
+        float p_inner = p[INDEX(pos.x + 1, pos.y, size_x)];
         n += 1.0;
 
         if (b_self == BC_SELF_OUTFLOW) {
-            v += /* 2.0 * 0.0 */ - p_right;                 // fixed pressure boundary (p = 0)
+            v += /* 2.0 * 0.0 */ - p_inner;                 // fixed pressure boundary (p = 0)
         } else if (b_self == BC_SELF_SLIP_H) {
-            v += 2.0 * p_in - p_right;                      // fixed pressure boundary
+            v += 2.0 * p_in - p_inner;                      // fixed pressure boundary
         } else {
-            v += p_right;                                   // solid boundary
+            v += p_inner;                                   // solid boundary
         }
     }
 
     // right of right boundary
     if (BC_IS_NEIGHBOR_LEFT_FLUID(b_cell)) {
-        float p_left = p[INDEX(pos.x - 1, pos.y, size_x)];
+        float p_inner = p[INDEX(pos.x - 1, pos.y, size_x)];
         n += 1.0;
 
         if (b_self == BC_SELF_OUTFLOW) {
-            v += /* 2.0 * 0.0 */ - p_left;                  // fixed pressure boundary (p = 0)
+            v += /* 2.0 * 0.0 */ - p_inner;                 // fixed pressure boundary (p = 0)
         } else if (b_self == BC_SELF_SLIP_H) {
-            v += 2.0 * p_in - p_left;                       // fixed pressure boundary
+            v += 2.0 * p_in - p_inner;                      // fixed pressure boundary
         } else {
-            v += p_left;                                    // solid boundary
+            v += p_inner;                                   // solid boundary
         }
     }
 
     // below bottom boundary
     if (BC_IS_NEIGHBOR_TOP_FLUID(b_cell)) {
-        float p_top = p[INDEX(pos.x, pos.y + 1, size_x)];
+        float p_inner = p[INDEX(pos.x, pos.y + 1, size_x)];
         n += 1.0;
 
         if (b_self == BC_SELF_OUTFLOW) {
-            v += /* 2.0 * 0.0 */ - p_top;                   // fixed pressure boundary (p = 0)
+            v += /* 2.0 * 0.0 */ - p_inner;                 // fixed pressure boundary (p = 0)
         } else if (b_self == BC_SELF_SLIP_V) {
-            v += 2.0 * p_in - p_top;                        // fixed prssure boundary
+            v += 2.0 * p_in - p_inner;                      // fixed prssure boundary
         } else {
-            v += p_top;                                     // solid boundary
+            v += p_inner;                                   // solid boundary
         }
     }
 
     // above top boundary
     if (BC_IS_NEIGHBOR_BOTTOM_FLUID(b_cell)) {
-        float p_down = p[INDEX(pos.x, pos.y - 1, size_x)];
+        float p_inner = p[INDEX(pos.x, pos.y - 1, size_x)];
         n += 1.0;
 
         if (b_self == BC_SELF_OUTFLOW) {
-            v += /* 2.0 * 0.0 */ - p_down;                  // fixed pressure boundary (p = 0)
+            v += /* 2.0 * 0.0 */ - p_inner;                 // fixed pressure boundary (p = 0)
         } else if (b_self == BC_SELF_SLIP_V) {
-            v += 2.0 * p_in - p_down;                       // fixed pressure boundary
+            v += 2.0 * p_in - p_inner;                      // fixed pressure boundary
         } else {
-            v += p_down;                                    // solid boundary
+            v += p_inner;                                   // solid boundary
         }
     }
 
