@@ -14,19 +14,25 @@
 #include "sdl/opengl/utils.hpp"
 
 #include "vis/visualizer.hpp"
-#include "vis/shader/resources.hpp"
+
 #include "core/kernel/resources.hpp"
+#include "core/parameters.hpp"
+#include "core/geometry.hpp"
 
 #include <iostream>
 #include <iomanip>
 
 
+const std::string WINDOW_TITLE = "Numerical Simulations Course 2017/18";
 const ivec2 INITIAL_SCREEN_SIZE = {800, 800};
 const ivec2 SIMULATION_SIZE = {32, 32};
 
 
 int main(int argc, char** argv) try {
-    auto window = sdl::opengl::Window::builder("Numerical Simulations Course 2017/18", INITIAL_SCREEN_SIZE)
+    auto params = core::Parameters{};
+    auto geom = core::Geometry::lid_driven_cavity(SIMULATION_SIZE);
+
+    auto window = sdl::opengl::Window::builder(WINDOW_TITLE, INITIAL_SCREEN_SIZE)
         .set(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
         .set(SDL_GL_CONTEXT_MINOR_VERSION, 3)
         .set(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE)
@@ -106,13 +112,43 @@ int main(int argc, char** argv) try {
 
     auto cl_context = cl::Context(device, properties.data());
 
-    cl::Program::Sources sources;
-    sources.push_back(core::kernel::resources::debug_cl.to_string());
+    // progam: visualize
+    cl::Program::Sources cl_visualize_sources;
+    cl_visualize_sources.push_back(core::kernel::resources::visualize_cl.to_string());
 
-    cl::Program program{cl_context, sources};
-    program.build({device});
+    cl::Program cl_visualize_program{cl_context, cl_visualize_sources};
+    cl_visualize_program.build({device});
+
+    // progam: boundaries
+    cl::Program::Sources cl_boundaries_sources;
+    cl_boundaries_sources.push_back(core::kernel::resources::boundaries_cl.to_string());
+
+    cl::Program cl_boundaries_program{cl_context, cl_boundaries_sources};
+    cl_boundaries_program.build({device});
+
 
     cl::CommandQueue cl_queue{cl_context, device};
+
+    // set boundary buffer
+    auto buf_boundary = cl::Buffer{cl_context, CL_MEM_READ_ONLY, geom.data().size() * sizeof(std::uint8_t)};
+    cl::copy(cl_queue, geom.data().begin(), geom.data().end(), buf_boundary);
+
+    // initialize component buffers
+    auto buf_u_size = (SIMULATION_SIZE.x + 1) * SIMULATION_SIZE.y * sizeof(cl_float);
+    auto buf_u = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_u_size};
+    cl_queue.enqueueFillBuffer(buf_u, static_cast<cl_float>(0.0), 0, buf_u_size);
+
+    auto buf_v_size = SIMULATION_SIZE.x * (SIMULATION_SIZE.y + 1) * sizeof(cl_float);
+    auto buf_v = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_v_size};
+    cl_queue.enqueueFillBuffer(buf_v, static_cast<cl_float>(0.0), 0, buf_v_size);
+
+    auto buf_p_size = SIMULATION_SIZE.x * SIMULATION_SIZE.y * sizeof(cl_float);
+    auto buf_p = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_p_size};
+    cl_queue.enqueueFillBuffer(buf_p, static_cast<cl_float>(0.0), 0, buf_p_size);
+
+    auto buf_rhs_size = (SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2) * sizeof(cl_float);
+    auto buf_rhs = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_rhs_size};
+    cl_queue.enqueueFillBuffer(buf_rhs, static_cast<cl_float>(0.0), 0, buf_rhs_size);
 
     glClearColor(0.0, 0.0, 0.0, 1.0);
 
@@ -150,17 +186,71 @@ int main(int argc, char** argv) try {
             }
         }
 
-        glFlush();
 
+        {   // set u boundary
+            cl::Kernel kernel_boundary_u{cl_boundaries_program, "set_boundary_u"};
+            kernel_boundary_u.setArg(0, buf_u);
+            kernel_boundary_u.setArg(1, buf_boundary);
+            kernel_boundary_u.setArg(2, static_cast<cl_float>(geom.boundary_velocity().x));
+
+            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            cl_queue.enqueueNDRangeKernel(kernel_boundary_u, cl::NullRange, range, cl::NullRange);
+        }
+
+        {   // set v boundary
+            cl::Kernel kernel_boundary_v{cl_boundaries_program, "set_boundary_v"};
+            kernel_boundary_v.setArg(0, buf_v);
+            kernel_boundary_v.setArg(1, buf_boundary);
+            kernel_boundary_v.setArg(2, static_cast<cl_float>(geom.boundary_velocity().y));
+
+            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            cl_queue.enqueueNDRangeKernel(kernel_boundary_v, cl::NullRange, range, cl::NullRange);
+        }
+
+        {   // set pressure boundary
+            cl::Kernel kernel_boundary_p{cl_boundaries_program, "set_boundary_p"};
+            kernel_boundary_p.setArg(0, buf_p);
+            kernel_boundary_p.setArg(1, buf_boundary);
+            kernel_boundary_p.setArg(2, static_cast<cl_float>(geom.boundary_pressure()));
+
+            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            cl_queue.enqueueNDRangeKernel(kernel_boundary_p, cl::NullRange, range, cl::NullRange);
+        }
 
         // write to texture via OpenCL
+        glFlush();
         cl_queue.enqueueAcquireGLObjects(&cl_req);
 
-        cl::Kernel simple_add{program, "write_image"};
-        simple_add.setArg(0, cl_image);
+        {
+            // // visualize boundary types
+            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_boundaries"};
+            // kernel_vis.setArg(0, cl_image);
+            // kernel_vis.setArg(1, buf_boundary);
 
-        auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
-        cl_queue.enqueueNDRangeKernel(simple_add, cl::NullRange, range, cl::NullRange);
+            // // visualize pressure
+            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_p"};
+            // kernel_vis.setArg(0, cl_image);
+            // kernel_vis.setArg(1, buf_p);
+
+            // // visualize velocity u
+            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_u"};
+            // kernel_vis.setArg(0, cl_image);
+            // kernel_vis.setArg(1, buf_u);
+
+            // // visualize velocity v
+            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_v_center"};
+            // kernel_vis.setArg(0, cl_image);
+            // kernel_vis.setArg(1, buf_v);
+
+            // visualize absolute velocity
+            cl::Kernel kernel_vis{cl_visualize_program, "visualize_uv_abs_center"};
+            kernel_vis.setArg(0, cl_image);
+            kernel_vis.setArg(1, buf_u);
+            kernel_vis.setArg(2, buf_v);
+
+            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            cl_queue.enqueueNDRangeKernel(kernel_vis, cl::NullRange, range, cl::NullRange);
+        }
 
         cl_queue.enqueueReleaseGLObjects(&cl_req);
         cl_queue.flush();
@@ -177,7 +267,7 @@ int main(int argc, char** argv) try {
 
 } catch (cl::BuildError const& err) {
     auto const& log = err.getBuildLog();
-    std::cerr << "Error: " << err.what() << "\n";
+    std::cerr << "OpenCL Build Error: " << err.what() << "\n";
     for (auto const& entry : log) {
         std::cerr << "-- LOG -------------------------------------------------------------------------\n";
         std::cout << "-- Device: " << entry.first.getInfo<CL_DEVICE_NAME>() << "\n";
@@ -187,14 +277,14 @@ int main(int argc, char** argv) try {
     throw err;
 
 } catch (opengl::CompileError const& err) {
-    std::cerr << "Error: " << err.what() << "\n";
+    std::cerr << "OpenGL Shader Compile Error: " << err.what() << "\n";
     std::cerr << "-- LOG -------------------------------------------------------------------------\n";
     std::cerr << err.log();
     std::cerr << "--------------------------------------------------------------------------------\n";
     throw err;
 
 } catch (opengl::LinkError const& err) {
-    std::cerr << "Error: " << err.what() << "\n";
+    std::cerr << "OpenGL Shader Link Error: " << err.what() << "\n";
     std::cerr << "-- LOG -------------------------------------------------------------------------\n";
     std::cerr << err.log();
     std::cerr << "--------------------------------------------------------------------------------\n";

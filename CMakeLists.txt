@@ -36,8 +36,18 @@ add_custom_command(
 add_custom_command(
     OUTPUT "resources_kernel.cpp"
     COMMAND embed_resource -o resources_kernel.cpp
-        "core::kernel::resources::debug_cl" "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/debug.cl"
+        "core::kernel::resources::boundaries_cl" "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/boundaries.cl"
+        "core::kernel::resources::momentum_cl"   "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/momentum.cl"
+        "core::kernel::resources::rhs_cl"        "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/rhs.cl"
+        "core::kernel::resources::velocities_cl" "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/velocities.cl"
+        "core::kernel::resources::visualize_cl"  "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/visualize.cl"
+        "core::kernel::resources::debug_cl"      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/debug.cl"
     DEPENDS
+        "src/core/kernel/boundaries.cl"
+        "src/core/kernel/momentum.cl"
+        "src/core/kernel/rhs.cl"
+        "src/core/kernel/velocities.cl"
+        "src/core/kernel/visualize.cl"
         "src/core/kernel/debug.cl"
 )
 
@@ -46,6 +56,8 @@ include_directories("src" "thirdparty")
 
 set(src_main
     "src/main.cpp"
+    "src/core/geometry.cpp"
+    "src/core/parameters.cpp"
     "resources_shader.cpp"
     "resources_kernel.cpp"
 )

@@ -102,7 +102,7 @@
 
 __kernel void set_boundary_u(
     __read_write __global float* u,     // (n + 3) * (m + 2)
-    __read_only __global uchar b,       // (n + 2) * (m + 2)
+    __read_only __global uchar* b,      // (n + 2) * (m + 2)
     __read_only float u_in
 ) {
     const int2 pos = (int2)(get_global_id(0), get_global_id(1));
@@ -114,7 +114,7 @@ __kernel void set_boundary_u(
     const int u_size_x = b_size_x + 1;
 
     // load boundary type
-    const uchar b_cell = b[INDEX(pos.x, pos.y, size_x)];
+    const uchar b_cell = b[INDEX(pos.x, pos.y, b_size_x)];
     const uchar b_self = b_cell & BC_MASK_SELF;
 
     // get orientation of boundary
@@ -138,7 +138,7 @@ __kernel void set_boundary_u(
         on_boundary = false;
 
     // u above top boundary
-    } else if (b_self != BC_SELF_FLUID && BC_IS_NEIGHBOR_BELOW_FLUID(b_cell)) {
+    } else if (b_self != BC_SELF_FLUID && BC_IS_NEIGHBOR_BOTTOM_FLUID(b_cell)) {
         u_pos_inner = (int2)(u_pos.x, u_pos.y - 1);
         on_boundary = false;
 
@@ -180,7 +180,7 @@ __kernel void set_boundary_u(
 
 __kernel void set_boundary_v(
     __read_write __global float* v,     // (n + 2) + (m + 3)
-    __read_only __global uchar b,       // (n + 2) * (m + 2)
+    __read_only __global uchar* b,      // (n + 2) * (m + 2)
     __read_only float v_in
 ) {
     const int2 pos = (int2)(get_global_id(0), get_global_id(1));
@@ -222,7 +222,7 @@ __kernel void set_boundary_v(
 
     // v is solid cell fully enclosed by other solid cells
     } else if (b_self != BC_SELF_FLUID) {
-        u[INDEX(v_pos.x, v_pos.y, b_size_x)] = 0.0;
+        v[INDEX(v_pos.x, v_pos.y, b_size_x)] = 0.0;
         return;
 
     // v is fluid cell fully enclosed by other fluid cells
@@ -258,8 +258,8 @@ __kernel void set_boundary_v(
 
 __kernel void set_boundary_p(
     __read_write __global float* p,     // (n + 2) * (m + 2)
-    __read_only __global uchar b,       // (n + 2) * (m + 2)
-    __read_only float p_in,
+    __read_only __global uchar* b,      // (n + 2) * (m + 2)
+    __read_only float p_in
 ) {
     const int2 pos = (int2)(get_global_id(0), get_global_id(1));
     // assumes: pos.x >= 0 && pos.x <= (len - 1) && pos.y >= 0 && pos.y <= (len - 1)

@@ -12,13 +12,13 @@
 //! - f: (n + 3) * (m + 2)      i.e. has boundaries and is staggered in x direction 
 //! - g: (n + 2) * (m + 3)      i.e. has boundaries and is staggered in y direction
 //! - b: (n + 2) * (m + 2)      i.e. has boundaries but is not staggered
-//! - result: n * m             i.e. has no boundaries and is not staggered
+//! - rhs: n * m                i.e. has no boundaries and is not staggered
 //! where n * m is the size of the interior.
 //!
 __kernel void rhs(
     __read_only __global float* f,
     __read_only __global float* g,
-    __write_only __global float* result,
+    __write_only __global float* rhs,
     __read_only __global uchar* b,
     __read_only float dt,
     __read_only float2 h
@@ -30,7 +30,7 @@ __kernel void rhs(
     const int b_size_x = get_global_size(0);
     const int f_size_x = b_size_x + 1;
     const int g_size_x = b_size_x;
-    const int result_size_x = b_size_x - 2;
+    const int rhs_size_x = b_size_x - 2;
 
     // only execute on fluid cells
     const uchar b_center = b[INDEX(pos.x, pos.y - 1, b_size_x)];
@@ -51,5 +51,5 @@ __kernel void rhs(
     const float g_dy_l = (g_center - g_down) / h.y;
 
     // store result
-    result[INDEX(pos.x, pos.y, result_size_x)] = (f_dx_l + g_dy_l) / dt;
+    rhs[INDEX(pos.x, pos.y, rhs_size_x)] = (f_dx_l + g_dy_l) / dt;
 }
