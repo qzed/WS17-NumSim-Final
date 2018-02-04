@@ -5,7 +5,7 @@
 
 
 __kernel void reduce_max_abs(
-    __global float const* input,
+    __global const float* input,
     __global float* output,
     __local float* shared,
     const uint n
@@ -43,7 +43,7 @@ __kernel void reduce_max_abs(
 
 
 __kernel void reduce_max(
-    __global float const* input,
+    __global const float* input,
     __global float* output,
     __local float* shared,
     const uint n
@@ -81,7 +81,7 @@ __kernel void reduce_max(
 
 
 __kernel void reduce_min(
-    __global float const* input,
+    __global const float* input,
     __global float* output,
     __local float* shared,
     const uint n
@@ -119,7 +119,7 @@ __kernel void reduce_min(
 
 
 __kernel void reduce_minmax(
-    __global float const* input,
+    __global const float* input,
     __global float* output,         // size: 2 * #workgroups
     __local float* shared,          // size: 2 * local-size
     const uint n
@@ -167,7 +167,7 @@ __kernel void reduce_minmax(
 
 
 __kernel void reduce_sum(
-    __global float const* input,
+    __global const float* input,
     __global float* output,
     __local float* shared,
     const uint n

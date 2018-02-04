@@ -20,10 +20,10 @@
 //! where n * m is the size of the interior.
 //!
 __kernel void compute_rhs(
-    __global float* f,
-    __global float* g,
+    __global const float* f,
+    __global const float* g,
     __global float* rhs,
-    __global uchar* b,
+    __global const uchar* b,
     const float dt,
     const float2 h
 ) {

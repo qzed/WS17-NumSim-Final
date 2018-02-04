@@ -27,10 +27,10 @@
 //! where n * m is the size of the interior.
 //!
 __kernel void momentum_eq_f(
-    __global float* u,
-    __global float* v,
+    __global const float* u,
+    __global const float* v,
     __global float* f,
-    __global uchar* b,
+    __global const uchar* b,
     const float alpha,
     const float re,
     const float dt,
@@ -105,10 +105,10 @@ __kernel void momentum_eq_f(
 //! where n * m is the size of the interior.
 //!
 __kernel void momentum_eq_g(
-    __global float* u,
-    __global float* v,
+    __global const float* u,
+    __global const float* v,
     __global float* g,
-    __global uchar* b,
+    __global const uchar* b,
     const float alpha,
     const float re,
     const float dt,
