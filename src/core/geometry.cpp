@@ -4,6 +4,8 @@
 #include <fstream>
 #include <algorithm>
 
+#include <iostream>
+
 
 namespace core {
 namespace geometry {
@@ -100,7 +102,7 @@ void Geometry::load(char const* file) {
         std::stringstream tokenstr{line};
         std::string key;
         if (!std::getline(tokenstr, key, '=')) { continue; };
-        utils::trim(key);
+        key = utils::trim(key);
 
         if (key == "size") {
             tokenstr >> m_size.x;
@@ -124,7 +126,7 @@ void Geometry::load(char const* file) {
         if (key == "geometry") {
             std::string value;
             tokenstr >> value;
-            utils::trim(value);
+            value = utils::trim(value);
 
             if (value == "free") {      // load 'm_size.y' lines
                 std::string line;
@@ -150,9 +152,17 @@ void Geometry::load(char const* file) {
 
         // transform charecter-data to bit-field
         std::vector<std::uint8_t> data(m_size.x * m_size.y, geometry::cell_type_to_bits(CellType::Fluid));
-        std::transform(freeform.begin(), freeform.end(), data.begin(), [](char c) {
-            return geometry::cell_type_to_bits(geometry::cell_type_from_char(c));
-        });
+        for (int_t y = 0; y < m_size.y; y++) {
+            for (int_t x = 0; x < m_size.x; x++) {
+                int_t idx_chars = (m_size.y - y - 1) * m_size.x + x;
+                int_t idx_cells = y * m_size.x + x;
+
+                char c = freeform[idx_chars];
+                data[idx_cells] = geometry::cell_type_to_bits(geometry::cell_type_from_char(c));
+            }
+        }
+
+        m_data = std::move(data);
 
         // reset neighbor bits
         geometry::set_neighbor_bits(m_size, m_data);

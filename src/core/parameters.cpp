@@ -19,7 +19,7 @@ void Parameters::load(char const* file) {
         std::stringstream tokenstr{line};
         std::string key;
         if (!std::getline(tokenstr, key, '=')) { continue; };
-        utils::trim(key);
+        key = utils::trim(key);
 
         if (key == "re") {
             tokenstr >> re;

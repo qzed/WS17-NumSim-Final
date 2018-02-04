@@ -29,7 +29,6 @@
 
 const std::string WINDOW_TITLE = "Numerical Simulations Course 2017/18";
 const ivec2 INITIAL_SCREEN_SIZE = {800, 800};
-const ivec2 SIMULATION_SIZE = {128, 128};
 
 const char* OCL_COMPILER_OPTIONS =
     "-cl-single-precision-constant "
@@ -55,7 +54,11 @@ enum class VisualTarget {
 
 int main(int argc, char** argv) try {
     auto params = core::Parameters{};
-    auto geom = core::Geometry::lid_driven_cavity(SIMULATION_SIZE);
+    auto geom = core::Geometry::lid_driven_cavity({128, 128});
+
+    params.load("/mnt/lnx/Uni/17WS/Numerische Simulation/Code/data/channel.param");
+    geom.load("/mnt/lnx/Uni/17WS/Numerische Simulation/Code/data/channel.geom");
+
     auto n_fluid_cells = geom.num_fluid_cells();
 
     auto window = sdl::opengl::Window::builder(WINDOW_TITLE, INITIAL_SCREEN_SIZE)
@@ -70,7 +73,7 @@ int main(int argc, char** argv) try {
     sdl::opengl::set_swap_interval(1);
 
     auto visualizer = vis::Visualizer{};
-    visualizer.initialize(INITIAL_SCREEN_SIZE, SIMULATION_SIZE);
+    visualizer.initialize(INITIAL_SCREEN_SIZE, geom.size());
 
     // get OpenCL platform
     std::vector<cl::Platform> platforms;
@@ -205,37 +208,37 @@ int main(int argc, char** argv) try {
     cl::CommandQueue cl_queue{cl_context, device};
 
     // set boundary buffer
-    auto buf_boundary = cl::Buffer{cl_context, CL_MEM_READ_ONLY, geom.data().size() * sizeof(std::uint8_t)};
+    auto buf_boundary = cl::Buffer{cl_context, CL_MEM_READ_ONLY, geom.data().size() * sizeof(cl_uchar)};
     cl::copy(cl_queue, geom.data().begin(), geom.data().end(), buf_boundary);
 
     // create component buffers
-    auto buf_u_size = (SIMULATION_SIZE.x + 1) * SIMULATION_SIZE.y * sizeof(cl_float);
+    auto buf_u_size = (geom.size().x + 1) * geom.size().y * sizeof(cl_float);
     auto buf_u = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_u_size};
     auto buf_f = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_u_size};
 
-    auto buf_v_size = SIMULATION_SIZE.x * (SIMULATION_SIZE.y + 1) * sizeof(cl_float);
+    auto buf_v_size = geom.size().x * (geom.size().y + 1) * sizeof(cl_float);
     auto buf_v = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_v_size};
     auto buf_g = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_v_size};
 
-    auto buf_p_size = SIMULATION_SIZE.x * SIMULATION_SIZE.y * sizeof(cl_float);
+    auto buf_p_size = geom.size().x * geom.size().y * sizeof(cl_float);
     auto buf_p = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_p_size};
 
-    auto buf_rhs_size = (SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2) * sizeof(cl_float);
+    auto buf_rhs_size = (geom.size().x - 2) * (geom.size().y - 2) * sizeof(cl_float);
     auto buf_rhs = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_rhs_size};
 
     // buffers for local residual
-    auto buf_res_size = (SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2) * sizeof(cl_float);
+    auto buf_res_size = (geom.size().x - 2) * (geom.size().y - 2) * sizeof(cl_float);
     auto buf_res = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_res_size};
 
     // buffer vor visualization
-    auto buf_vis_size = SIMULATION_SIZE.x * SIMULATION_SIZE.y * sizeof(cl_float);
+    auto buf_vis_size = geom.size().x * geom.size().y * sizeof(cl_float);
     auto buf_vis = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_vis_size};
 
     // initialize reduction stuff
-    uint_t const reduce_res_size = (SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2);
-    uint_t const reduce_vis_size = SIMULATION_SIZE.x * SIMULATION_SIZE.y;
-    uint_t const reduce_u_size = (SIMULATION_SIZE.x + 1) * SIMULATION_SIZE.y;
-    uint_t const reduce_v_size = SIMULATION_SIZE.x * (SIMULATION_SIZE.y + 1);
+    uint_t const reduce_res_size = (geom.size().x - 2) * (geom.size().y - 2);
+    uint_t const reduce_vis_size = geom.size().x * geom.size().y;
+    uint_t const reduce_u_size = (geom.size().x + 1) * geom.size().y;
+    uint_t const reduce_v_size = geom.size().x * (geom.size().y + 1);
     uint_t const reduce_local_size = 128;
 
     uint_t const reduce_global_size_res = utils::pad_up(reduce_res_size, reduce_local_size);
@@ -262,7 +265,7 @@ int main(int argc, char** argv) try {
         cl::Kernel kernel{cl_zero_program, "zero_float"};
         kernel.setArg(0, buf_u);
 
-        auto range = cl::NDRange((SIMULATION_SIZE.x + 1) * SIMULATION_SIZE.y);
+        auto range = cl::NDRange((geom.size().x + 1) * geom.size().y);
         cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
     }
 
@@ -270,7 +273,7 @@ int main(int argc, char** argv) try {
         cl::Kernel kernel{cl_zero_program, "zero_float"};
         kernel.setArg(0, buf_v);
 
-        auto range = cl::NDRange(SIMULATION_SIZE.x * (SIMULATION_SIZE.y + 1));
+        auto range = cl::NDRange(geom.size().x * (geom.size().y + 1));
         cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
     }
 
@@ -278,7 +281,7 @@ int main(int argc, char** argv) try {
         cl::Kernel kernel{cl_zero_program, "zero_float"};
         kernel.setArg(0, buf_f);
 
-        auto range = cl::NDRange((SIMULATION_SIZE.x + 1) * SIMULATION_SIZE.y);
+        auto range = cl::NDRange((geom.size().x + 1) * geom.size().y);
         cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
     }
 
@@ -286,7 +289,7 @@ int main(int argc, char** argv) try {
         cl::Kernel kernel{cl_zero_program, "zero_float"};
         kernel.setArg(0, buf_g);
 
-        auto range = cl::NDRange(SIMULATION_SIZE.x * (SIMULATION_SIZE.y + 1));
+        auto range = cl::NDRange(geom.size().x * (geom.size().y + 1));
         cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
     }
 
@@ -294,7 +297,7 @@ int main(int argc, char** argv) try {
         cl::Kernel kernel{cl_zero_program, "zero_float"};
         kernel.setArg(0, buf_p);
 
-        auto range = cl::NDRange(SIMULATION_SIZE.x * SIMULATION_SIZE.y);
+        auto range = cl::NDRange(geom.size().x * geom.size().y);
         cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
     }
 
@@ -302,7 +305,7 @@ int main(int argc, char** argv) try {
         cl::Kernel kernel{cl_zero_program, "zero_float"};
         kernel.setArg(0, buf_rhs);
 
-        auto range = cl::NDRange((SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2));
+        auto range = cl::NDRange((geom.size().x - 2) * (geom.size().y - 2));
         cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
     }
 
@@ -376,7 +379,7 @@ int main(int argc, char** argv) try {
             kernel_boundary_u.setArg(1, buf_boundary);
             kernel_boundary_u.setArg(2, static_cast<cl_float>(geom.boundary_velocity().x));
 
-            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            auto range = cl::NDRange(geom.size().x, geom.size().y);
             cl_queue.enqueueNDRangeKernel(kernel_boundary_u, cl::NullRange, range, cl::NullRange);
         }
 
@@ -386,7 +389,7 @@ int main(int argc, char** argv) try {
             kernel_boundary_v.setArg(1, buf_boundary);
             kernel_boundary_v.setArg(2, static_cast<cl_float>(geom.boundary_velocity().y));
 
-            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            auto range = cl::NDRange(geom.size().x, geom.size().y);
             cl_queue.enqueueNDRangeKernel(kernel_boundary_v, cl::NullRange, range, cl::NullRange);
         }
 
@@ -396,7 +399,7 @@ int main(int argc, char** argv) try {
             kernel_boundary_p.setArg(1, buf_boundary);
             kernel_boundary_p.setArg(2, static_cast<cl_float>(geom.boundary_pressure()));
 
-            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            auto range = cl::NDRange(geom.size().x, geom.size().y);
             cl_queue.enqueueNDRangeKernel(kernel_boundary_p, cl::NullRange, range, cl::NullRange);
         }
 
@@ -444,7 +447,7 @@ int main(int argc, char** argv) try {
             kernel_momentum_f.setArg(6, static_cast<cl_float>(dt));
             kernel_momentum_f.setArg(7, h);
 
-            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            auto range = cl::NDRange(geom.size().x, geom.size().y);
             cl_queue.enqueueNDRangeKernel(kernel_momentum_f, cl::NullRange, range, cl::NullRange);
         }
 
@@ -461,7 +464,7 @@ int main(int argc, char** argv) try {
             kernel_momentum_g.setArg(6, static_cast<cl_float>(dt));
             kernel_momentum_g.setArg(7, h);
 
-            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            auto range = cl::NDRange(geom.size().x, geom.size().y);
             cl_queue.enqueueNDRangeKernel(kernel_momentum_g, cl::NullRange, range, cl::NullRange);
         }
 
@@ -476,7 +479,7 @@ int main(int argc, char** argv) try {
             kernel_rhs.setArg(4, static_cast<cl_float>(dt));
             kernel_rhs.setArg(5, h);
 
-            auto range = cl::NDRange(SIMULATION_SIZE.x - 2, SIMULATION_SIZE.y - 2);
+            auto range = cl::NDRange(geom.size().x - 2, geom.size().y - 2);
             cl_queue.enqueueNDRangeKernel(kernel_rhs, cl::NullRange, range, cl::NullRange);
         }
 
@@ -491,7 +494,7 @@ int main(int argc, char** argv) try {
             kernel_rhs.setArg(4, static_cast<cl_float>(dt));
             kernel_rhs.setArg(5, h);
 
-            auto range = cl::NDRange(SIMULATION_SIZE.x - 2, SIMULATION_SIZE.y - 2);
+            auto range = cl::NDRange(geom.size().x - 2, geom.size().y - 2);
             cl_queue.enqueueNDRangeKernel(kernel_rhs, cl::NullRange, range, cl::NullRange);
         }
 
@@ -530,11 +533,11 @@ int main(int argc, char** argv) try {
             kernel_reduce.setArg(2, cl::Local(reduce_local_size * sizeof(cl_float)));
             kernel_reduce.setArg(3, reduce_res_size);
 
-            int_t y_cells_black = (SIMULATION_SIZE.y - 2) / 2;
-            auto range_red = cl::NDRange(SIMULATION_SIZE.x - 2, SIMULATION_SIZE.y - 2 - y_cells_black);
-            auto range_black = cl::NDRange(SIMULATION_SIZE.x - 2, y_cells_black);
-            auto range_bounds = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
-            auto range_residual = cl::NDRange(SIMULATION_SIZE.x - 2, SIMULATION_SIZE.y - 2);
+            int_t y_cells_black = (geom.size().y - 2) / 2;
+            auto range_red = cl::NDRange(geom.size().x - 2, geom.size().y - 2 - y_cells_black);
+            auto range_black = cl::NDRange(geom.size().x - 2, y_cells_black);
+            auto range_bounds = cl::NDRange(geom.size().x, geom.size().y);
+            auto range_residual = cl::NDRange(geom.size().x - 2, geom.size().y - 2);
 
             cl_float residual = std::numeric_limits<cl_float>::infinity();
             int_t iter = 0;
@@ -572,7 +575,7 @@ int main(int argc, char** argv) try {
             kernel.setArg(6, static_cast<cl_float>(dt));
             kernel.setArg(7, h);
 
-            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            auto range = cl::NDRange(geom.size().x, geom.size().y);
             cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
         }
 
@@ -626,7 +629,7 @@ int main(int argc, char** argv) try {
                 kernel.setArg(1, buf_rhs);
             }
 
-            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            auto range = cl::NDRange(geom.size().x, geom.size().y);
             cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
 
             // get min/max values
@@ -655,7 +658,7 @@ int main(int argc, char** argv) try {
             kernel.setArg(0, cl_image);
             kernel.setArg(1, buf_vis);
 
-            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            auto range = cl::NDRange(geom.size().x, geom.size().y);
             cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
         }
 
