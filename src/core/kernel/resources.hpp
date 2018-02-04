@@ -13,11 +13,11 @@ extern const utils::Resource rhs_cl;
 extern const utils::Resource velocities_cl;
 extern const utils::Resource solver_cl;
 
-extern const utils::Resource reduce_cl;
-extern const utils::Resource zero_cl;
 extern const utils::Resource visualize_cl;
 
-extern const utils::Resource debug_cl;
+extern const utils::Resource reduce_cl;
+extern const utils::Resource zero_cl;
+extern const utils::Resource copy_cl;
 
 }   /* namespace resources */
 }   /* namespace kernel */

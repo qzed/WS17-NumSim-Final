@@ -61,6 +61,7 @@ public:
     inline auto boundary_velocity() const -> rvec2 const&;
 
     inline auto data() const -> std::vector<std::uint8_t> const&;
+    auto num_fluid_cells() const -> uint_t;
 
 private:
     void make_lid_driven_cavity();

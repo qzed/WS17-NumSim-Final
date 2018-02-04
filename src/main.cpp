@@ -56,6 +56,7 @@ enum class VisualTarget {
 int main(int argc, char** argv) try {
     auto params = core::Parameters{};
     auto geom = core::Geometry::lid_driven_cavity(SIMULATION_SIZE);
+    auto n_fluid_cells = geom.num_fluid_cells();
 
     auto window = sdl::opengl::Window::builder(WINDOW_TITLE, INITIAL_SCREEN_SIZE)
         .set(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
@@ -193,6 +194,13 @@ int main(int argc, char** argv) try {
     cl::Program cl_reduce_program{cl_context, cl_reduce_sources};
     cl_reduce_program.build({device}, OCL_COMPILER_OPTIONS);
 
+    // progam: copy (calculate updated copy)
+    cl::Program::Sources cl_copy_sources;
+    cl_copy_sources.push_back(core::kernel::resources::copy_cl.to_string());
+
+    cl::Program cl_copy_program{cl_context, cl_copy_sources};
+    cl_copy_program.build({device}, OCL_COMPILER_OPTIONS);
+
 
     cl::CommandQueue cl_queue{cl_context, device};
 
@@ -219,25 +227,34 @@ int main(int argc, char** argv) try {
     auto buf_res_size = (SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2) * sizeof(cl_float);
     auto buf_res = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_res_size};
 
+    // buffer vor visualization
+    auto buf_vis_size = SIMULATION_SIZE.x * SIMULATION_SIZE.y * sizeof(cl_float);
+    auto buf_vis = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_vis_size};
+
     // initialize reduction stuff
     uint_t const reduce_res_size = (SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2);
+    uint_t const reduce_vis_size = SIMULATION_SIZE.x * SIMULATION_SIZE.y;
     uint_t const reduce_u_size = (SIMULATION_SIZE.x + 1) * SIMULATION_SIZE.y;
     uint_t const reduce_v_size = SIMULATION_SIZE.x * (SIMULATION_SIZE.y + 1);
     uint_t const reduce_local_size = 128;
 
     uint_t const reduce_global_size_res = utils::pad_up(reduce_res_size, reduce_local_size);
+    uint_t const reduce_global_size_vis = utils::pad_up(reduce_vis_size, reduce_local_size);
     uint_t const reduce_global_size_u = utils::pad_up(reduce_u_size, reduce_local_size);
     uint_t const reduce_global_size_v = utils::pad_up(reduce_v_size, reduce_local_size);
 
     uint_t const reduce_output_size_res = reduce_global_size_res / reduce_local_size;
+    uint_t const reduce_output_size_vis = 2 * reduce_global_size_vis / reduce_local_size;
     uint_t const reduce_output_size_u = reduce_global_size_u / reduce_local_size;
     uint_t const reduce_output_size_v = reduce_global_size_v / reduce_local_size;
 
     auto buf_reduce_out_res = cl::Buffer{cl_context, CL_MEM_WRITE_ONLY, reduce_output_size_res * sizeof(cl_float)};
+    auto buf_reduce_out_vis = cl::Buffer{cl_context, CL_MEM_WRITE_ONLY, reduce_output_size_vis * sizeof(cl_float)};
     auto buf_reduce_out_u = cl::Buffer{cl_context, CL_MEM_WRITE_ONLY, reduce_output_size_u * sizeof(cl_float)};
     auto buf_reduce_out_v = cl::Buffer{cl_context, CL_MEM_WRITE_ONLY, reduce_output_size_v * sizeof(cl_float)};
 
     auto vec_reduce_out_res = std::vector<cl_float>(reduce_output_size_res);
+    auto vec_reduce_out_vis = std::vector<cl_float>(reduce_output_size_vis);
     auto vec_reduce_out_u = std::vector<cl_float>(reduce_output_size_u);
     auto vec_reduce_out_v = std::vector<cl_float>(reduce_output_size_v);
 
@@ -537,8 +554,7 @@ int main(int argc, char** argv) try {
                     cl::copy(cl_queue, buf_reduce_out_res, vec_reduce_out_res.begin(), vec_reduce_out_res.end());
 
                     residual = std::accumulate(vec_reduce_out_res.begin(), vec_reduce_out_res.end(), static_cast<cl_float>(0.0));
-                    residual = residual / ((SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2));
-                    // TODO: divide by actual number of fluid cells
+                    residual = residual / n_fluid_cells;
                 }
             }
         }
@@ -565,61 +581,84 @@ int main(int argc, char** argv) try {
         std::cout << "time: " << t << "\n";
         std::cout << "dt:   " << dt << "\n";
 
-        // write to texture via OpenCL
-        glFinish();
-        cl_queue.finish();
-        cl_queue.enqueueAcquireGLObjects(&cl_req);
-
-        {
+        {   // visualize: write visualization data to intermediate buffer
             cl::Kernel kernel;
 
             if (visual == VisualTarget::BoundaryTypes) {
                 kernel = {cl_visualize_program, "visualize_boundaries"};
-                kernel.setArg(0, cl_image);
+                kernel.setArg(0, buf_vis);
                 kernel.setArg(1, buf_boundary);
 
             } else if (visual == VisualTarget::P) {
                 kernel = {cl_visualize_program, "visualize_p"};
-                kernel.setArg(0, cl_image);
+                kernel.setArg(0, buf_vis);
                 kernel.setArg(1, buf_p);
 
             } else if (visual == VisualTarget::U) {
                 kernel = {cl_visualize_program, "visualize_u"};
-                kernel.setArg(0, cl_image);
+                kernel.setArg(0, buf_vis);
                 kernel.setArg(1, buf_u);
 
             } else if (visual == VisualTarget::V) {
                 kernel = {cl_visualize_program, "visualize_v"};
-                kernel.setArg(0, cl_image);
+                kernel.setArg(0, buf_vis);
                 kernel.setArg(1, buf_v);
 
             } else if (visual == VisualTarget::UVAbsCentered) {
                 kernel = {cl_visualize_program, "visualize_uv_abs_center"};
-                kernel.setArg(0, cl_image);
+                kernel.setArg(0, buf_vis);
                 kernel.setArg(1, buf_u);
                 kernel.setArg(2, buf_v);
 
             } else if (visual == VisualTarget::F) {
                 kernel = {cl_visualize_program, "visualize_u"};
-                kernel.setArg(0, cl_image);
+                kernel.setArg(0, buf_vis);
                 kernel.setArg(1, buf_f);
 
             } else if (visual == VisualTarget::G) {
                 kernel = {cl_visualize_program, "visualize_v"};
-                kernel.setArg(0, cl_image);
+                kernel.setArg(0, buf_vis);
                 kernel.setArg(1, buf_g);
 
             } else if (visual == VisualTarget::Rhs) {
                 kernel = {cl_visualize_program, "visualize_rhs"};
-                kernel.setArg(0, cl_image);
+                kernel.setArg(0, buf_vis);
                 kernel.setArg(1, buf_rhs);
             }
 
             auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
             cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
+
+            // get min/max values
+            cl::Kernel kernel_reduce{cl_reduce_program, "reduce_minmax"};
+            kernel_reduce.setArg(0, buf_vis);
+            kernel_reduce.setArg(1, buf_reduce_out_vis);
+            kernel_reduce.setArg(2, cl::Local(2 * reduce_local_size * sizeof(cl_float)));
+            kernel_reduce.setArg(3, reduce_vis_size);
+
+            cl_queue.enqueueNDRangeKernel(kernel_reduce, cl::NullRange, cl::NDRange(reduce_global_size_vis), cl::NDRange(reduce_local_size));
+            cl::copy(cl_queue, buf_reduce_out_vis, vec_reduce_out_vis.begin(), vec_reduce_out_vis.end());
+
+            std::size_t center = vec_reduce_out_vis.size() / 2;
+            cl_float min = *std::min_element(vec_reduce_out_vis.begin(), vec_reduce_out_vis.begin() + center);
+            cl_float max = *std::max_element(vec_reduce_out_vis.begin() + center, vec_reduce_out_vis.end());
+
+            visualizer.set_data_range(min, max);
         }
 
-        cl_queue.finish();
+        // copy visualization data to OpenGL texture via OpenCL
+        glFinish();
+        cl_queue.enqueueAcquireGLObjects(&cl_req);
+
+        {
+            cl::Kernel kernel{cl_copy_program, "copy_buf_to_img"};
+            kernel.setArg(0, cl_image);
+            kernel.setArg(1, buf_vis);
+
+            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
+        }
+
         cl_queue.enqueueReleaseGLObjects(&cl_req);
         cl_queue.finish();
 

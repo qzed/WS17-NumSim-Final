@@ -2,6 +2,7 @@
 #include "utils/trim.hpp"
 
 #include <fstream>
+#include <algorithm>
 
 
 namespace core {
@@ -160,6 +161,12 @@ void Geometry::load(char const* file) {
     } else {
         make_lid_driven_cavity();
     }
+}
+
+auto Geometry::num_fluid_cells() const -> uint_t {
+    return std::count_if(m_data.begin(), m_data.end(), [](std::uint8_t c) {
+        return (c & CELL_MASK_SELF) == geometry::cell_type_to_bits(CellType::Fluid);
+    });
 }
 
 }   /* namespace core */

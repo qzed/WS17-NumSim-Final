@@ -41,10 +41,10 @@ add_custom_command(
         "core::kernel::resources::rhs_cl"        "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/rhs.cl"
         "core::kernel::resources::velocities_cl" "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/velocities.cl"
         "core::kernel::resources::solver_cl"     "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/solver.cl"
+        "core::kernel::resources::visualize_cl"  "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/visualize.cl"
         "core::kernel::resources::reduce_cl"     "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/reduce.cl"
         "core::kernel::resources::zero_cl"       "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/zero.cl"
-        "core::kernel::resources::visualize_cl"  "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/visualize.cl"
-        "core::kernel::resources::debug_cl"      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/debug.cl"
+        "core::kernel::resources::copy_cl"       "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/copy.cl"
     DEPENDS
         "src/core/kernel/boundaries.cl"
         "src/core/kernel/momentum.cl"
@@ -54,7 +54,7 @@ add_custom_command(
         "src/core/kernel/reduce.cl"
         "src/core/kernel/zero.cl"
         "src/core/kernel/visualize.cl"
-        "src/core/kernel/debug.cl"
+        "src/core/kernel/copy.cl"
 )
 
 

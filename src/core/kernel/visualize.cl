@@ -20,9 +20,9 @@
 
 
 //! Write the specified boundary types to the output image.
-kernel void visualize_boundaries(
-    __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __global uchar* b                 // (n + 2) * (m + 2)
+__kernel void visualize_boundaries(
+    __global float* output,             // (n + 2) * (m + 2)
+    __global const uchar* b             // (n + 2) * (m + 2)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
     const int size_x = get_global_size(0);
@@ -41,24 +41,23 @@ kernel void visualize_boundaries(
     case BC_SELF_NOSLIP:   val = 7.0 / 7.0; break;
     }
 
-    write_imagef(output, pos, (float4)(val, 0.0, 0.0, 0.0));
+    output[INDEX(pos.x, pos.y, size_x)] = val;
 }
 
 
-kernel void visualize_p(
-    __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __global float* p                 // (n + 2) * (m + 2)
+__kernel void visualize_p(
+    __global float* output,             // (n + 2) * (m + 2)
+    __global const float* p             // (n + 2) * (m + 2)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
     const int size_x = get_global_size(0);
 
-    const float val = p[INDEX(pos.x, pos.y, size_x)];
-    write_imagef(output, pos, (float4)(val, 0.0, 0.0, 0.0));
+    output[INDEX(pos.x, pos.y, size_x)] = p[INDEX(pos.x, pos.y, size_x)];
 }
 
-kernel void visualize_rhs(
-    __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __global float* rhs               // n * m
+__kernel void visualize_rhs(
+    __global float* output,             // (n + 2) * (m + 2)
+    __global const float* rhs           // n * m
 ) {
     const int2 pos = (int2)(get_global_id(0), get_global_id(1));
     const int2 size = (int2)(get_global_size(0), get_global_size(1));
@@ -68,88 +67,88 @@ kernel void visualize_rhs(
         val = rhs[INDEX(pos.x - 1, pos.y - 1, size.x - 2)];
     }
 
-    write_imagef(output, pos, (float4)(val, 0.0, 0.0, 0.0));
+    output[INDEX(pos.x, pos.y, size.x)] = val;
 }
 
 
-kernel void visualize_u(
-    __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __global float* u                 // (n + 3) * (m + 2)
+__kernel void visualize_u(
+    __global float* output,             // (n + 2) * (m + 2)
+    __global const float* u             // (n + 3) * (m + 2)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
-    const int u_size_x = get_global_size(0) + 1;
+    const int size_x = get_global_size(0);
+    const int u_size_x = size_x + 1;
 
-    float val = u[INDEX(pos.x + 1, pos.y, u_size_x)];
-
-    write_imagef(output, pos, (float4)(val, 0.0, 0.0, 0.0));
+    output[INDEX(pos.x, pos.y, size_x)] = u[INDEX(pos.x + 1, pos.y, u_size_x)];
 }
 
-kernel void visualize_u_center(
-    __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __global float* u                 // (n + 3) * (m + 2)
+__kernel void visualize_u_center(
+    __global float* output,             // (n + 2) * (m + 2)
+    __global const float* u             // (n + 3) * (m + 2)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
-    const int u_size_x = get_global_size(0) + 1;
+    const int size_x = get_global_size(0);
+    const int u_size_x = size_x + 1;
 
     const float u_cell = u[INDEX(pos.x + 1, pos.y, u_size_x)];
     const float u_left = u[INDEX(pos.x, pos.y, u_size_x)];
     const float val = (u_cell + u_left) / 2.0;
 
-    write_imagef(output, pos, (float4)(val, 0.0, 0.0, 0.0));
+    output[INDEX(pos.x, pos.y, size_x)] = val;
 }
 
 
-kernel void visualize_v(
-    __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __global float* v                 // (n + 2) * (m + 3)
+__kernel void visualize_v(
+    __global float* output,             // (n + 2) * (m + 2)
+    __global const float* v             // (n + 2) * (m + 3)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
-    const int v_size_x = get_global_size(0);
+    const int size_x = get_global_size(0);
 
-    const float val = v[INDEX(pos.x, pos.y + 1, v_size_x)];
-
-    write_imagef(output, pos, (float4)(val, 0.0, 0.0, 0.0));
+    output[INDEX(pos.x, pos.y, size_x)] = v[INDEX(pos.x, pos.y + 1, size_x)];
 }
 
-kernel void visualize_v_center(
-    __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __global float* v                 // (n + 2) * (m + 3)
+__kernel void visualize_v_center(
+    __global float* output,             // (n + 2) * (m + 2)
+    __global const float* v             // (n + 2) * (m + 3)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
-    const int v_size_x = get_global_size(0);
+    const int size_x = get_global_size(0);
 
-    const float v_cell = v[INDEX(pos.x, pos.y + 1, v_size_x)];
-    const float v_down = v[INDEX(pos.x, pos.y, v_size_x)];
+    const float v_cell = v[INDEX(pos.x, pos.y + 1, size_x)];
+    const float v_down = v[INDEX(pos.x, pos.y, size_x)];
     const float val = (v_cell + v_down) / 2.0;
 
-    write_imagef(output, pos, (float4)(val, 0.0, 0.0, 0.0));
+    output[INDEX(pos.x, pos.y, size_x)] = val;
 }
 
 
 kernel void visualize_uv_abs(
-    __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __global float* u,                // (n + 3) * (m + 2)
-    __global float* v                 // (n + 2) * (m + 3)
+    __global float* output,             // (n + 2) * (m + 2)
+    __global const float* u,            // (n + 3) * (m + 2)
+    __global const float* v             // (n + 2) * (m + 3)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
-    const int v_size_x = get_global_size(0);
-    const int u_size_x = v_size_x + 1;
+    const int size_x = get_global_size(0);
+    const int v_size_x = size_x;
+    const int u_size_x = size_x + 1;
 
     const float val_u = u[INDEX(pos.x + 1, pos.y, u_size_x)];
     const float val_v = v[INDEX(pos.x, pos.y + 1, u_size_x)];
     const float val = length((float2)(val_u, val_v));
 
-    write_imagef(output, pos, (float4)(val, 0.0, 0.0, 0.0));
+    output[INDEX(pos.x, pos.y, size_x)] = val;
 }
 
 kernel void visualize_uv_abs_center(
-    __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __global float* u,                // (n + 3) * (m + 2)
-    __global float* v                 // (n + 2) * (m + 3)
+    __global float* output,             // (n + 2) * (m + 2)
+    __global const float* u,            // (n + 3) * (m + 2)
+    __global const float* v             // (n + 2) * (m + 3)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
-    const int v_size_x = get_global_size(0);
-    const int u_size_x = v_size_x + 1;
+    const int size_x = get_global_size(0);
+    const int v_size_x = size_x;
+    const int u_size_x = size_x + 1;
 
     const float val_u_cell = u[INDEX(pos.x + 1, pos.y, u_size_x)];
     const float val_u_left = u[INDEX(pos.x, pos.y, u_size_x)];
@@ -161,5 +160,5 @@ kernel void visualize_uv_abs_center(
     
     const float val = length((float2)(val_u, val_v));
 
-    write_imagef(output, pos, (float4)(val, 0.0, 0.0, 0.0));
+    output[INDEX(pos.x, pos.y, size_x)] = val;
 }
