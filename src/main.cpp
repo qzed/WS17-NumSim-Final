@@ -24,6 +24,7 @@
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
+#include <numeric>
 
 
 const std::string WINDOW_TITLE = "Numerical Simulations Course 2017/18";
@@ -214,20 +215,29 @@ int main(int argc, char** argv) try {
     auto buf_rhs_size = (SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2) * sizeof(cl_float);
     auto buf_rhs = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_rhs_size};
 
+    // buffers for local residual
+    auto buf_res_size = (SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2) * sizeof(cl_float);
+    auto buf_res = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_res_size};
+
     // initialize reduction stuff
+    uint_t const reduce_res_size = (SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2);
     uint_t const reduce_u_size = (SIMULATION_SIZE.x + 1) * SIMULATION_SIZE.y;
     uint_t const reduce_v_size = SIMULATION_SIZE.x * (SIMULATION_SIZE.y + 1);
     uint_t const reduce_local_size = 128;
 
+    uint_t const reduce_global_size_res = utils::pad_up(reduce_res_size, reduce_local_size);
     uint_t const reduce_global_size_u = utils::pad_up(reduce_u_size, reduce_local_size);
     uint_t const reduce_global_size_v = utils::pad_up(reduce_v_size, reduce_local_size);
 
+    uint_t const reduce_output_size_res = reduce_global_size_res / reduce_local_size;
     uint_t const reduce_output_size_u = reduce_global_size_u / reduce_local_size;
     uint_t const reduce_output_size_v = reduce_global_size_v / reduce_local_size;
 
+    auto buf_reduce_out_res = cl::Buffer{cl_context, CL_MEM_WRITE_ONLY, reduce_output_size_res * sizeof(cl_float)};
     auto buf_reduce_out_u = cl::Buffer{cl_context, CL_MEM_WRITE_ONLY, reduce_output_size_u * sizeof(cl_float)};
     auto buf_reduce_out_v = cl::Buffer{cl_context, CL_MEM_WRITE_ONLY, reduce_output_size_v * sizeof(cl_float)};
 
+    auto vec_reduce_out_res = std::vector<cl_float>(reduce_output_size_res);
     auto vec_reduce_out_u = std::vector<cl_float>(reduce_output_size_u);
     auto vec_reduce_out_v = std::vector<cl_float>(reduce_output_size_v);
 
@@ -485,23 +495,51 @@ int main(int argc, char** argv) try {
             kernel_black.setArg(3, h);
             kernel_black.setArg(4, static_cast<cl_float>(params.omega));
 
+            cl::Kernel kernel_boundary_p{cl_boundaries_program, "set_boundary_p"};
+            kernel_boundary_p.setArg(0, buf_p);
+            kernel_boundary_p.setArg(1, buf_boundary);
+            kernel_boundary_p.setArg(2, static_cast<cl_float>(geom.boundary_pressure()));
+
+            cl::Kernel kernel_residual{cl_solver_program, "residual"};
+            kernel_residual.setArg(0, buf_p);
+            kernel_residual.setArg(1, buf_rhs);
+            kernel_residual.setArg(2, buf_boundary);
+            kernel_residual.setArg(3, buf_res);
+            kernel_residual.setArg(4, h);
+
+            cl::Kernel kernel_reduce{cl_reduce_program, "reduce_sum"};
+            kernel_reduce.setArg(0, buf_res);
+            kernel_reduce.setArg(1, buf_reduce_out_res);
+            kernel_reduce.setArg(2, cl::Local(reduce_local_size * sizeof(cl_float)));
+            kernel_reduce.setArg(3, reduce_res_size);
+
             int_t y_cells_black = (SIMULATION_SIZE.y - 2) / 2;
             auto range_red = cl::NDRange(SIMULATION_SIZE.x - 2, SIMULATION_SIZE.y - 2 - y_cells_black);
             auto range_black = cl::NDRange(SIMULATION_SIZE.x - 2, y_cells_black);
+            auto range_bounds = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            auto range_residual = cl::NDRange(SIMULATION_SIZE.x - 2, SIMULATION_SIZE.y - 2);
 
-            for (int_t i = 0; i < params.itermax; i++) {
+            cl_float residual = std::numeric_limits<cl_float>::infinity();
+            int_t iter = 0;
+            for (; iter < params.itermax && residual > params.eps; iter++) {
+                // solver cycles
                 cl_queue.enqueueNDRangeKernel(kernel_red, cl::NullRange, range_red, cl::NullRange);
                 cl_queue.enqueueNDRangeKernel(kernel_black, cl::NullRange, range_black, cl::NullRange);
-            }
 
-            {   // set pressure boundary
-                cl::Kernel kernel_boundary_p{cl_boundaries_program, "set_boundary_p"};
-                kernel_boundary_p.setArg(0, buf_p);
-                kernel_boundary_p.setArg(1, buf_boundary);
-                kernel_boundary_p.setArg(2, static_cast<cl_float>(geom.boundary_pressure()));
+                // update boundaries
+                cl_queue.enqueueNDRangeKernel(kernel_boundary_p, cl::NullRange, range_bounds, cl::NullRange);
 
-                auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
-                cl_queue.enqueueNDRangeKernel(kernel_boundary_p, cl::NullRange, range, cl::NullRange);
+                {   // calculate residual   // TODO: only do once in k solver-iterations
+                    cl_queue.enqueueNDRangeKernel(kernel_residual, cl::NullRange, range_residual, cl::NullRange);
+
+                    // reduce residual
+                    cl_queue.enqueueNDRangeKernel(kernel_reduce, cl::NullRange, cl::NDRange(reduce_global_size_res), cl::NDRange(reduce_local_size));
+                    cl::copy(cl_queue, buf_reduce_out_res, vec_reduce_out_res.begin(), vec_reduce_out_res.end());
+
+                    residual = std::accumulate(vec_reduce_out_res.begin(), vec_reduce_out_res.end(), static_cast<cl_float>(0.0));
+                    residual = residual / ((SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2));
+                    // TODO: divide by actual number of fluid cells
+                }
             }
         }
 
