@@ -25,7 +25,21 @@
 
 const std::string WINDOW_TITLE = "Numerical Simulations Course 2017/18";
 const ivec2 INITIAL_SCREEN_SIZE = {800, 800};
-const ivec2 SIMULATION_SIZE = {32, 32};
+const ivec2 SIMULATION_SIZE = {128, 128};
+
+
+enum class VisualTarget {
+    UVAbsCentered,
+    UCentered,
+    U,
+    VCentered,
+    V,
+    P,
+    BoundaryTypes,
+    F,
+    G,
+    Rhs,
+};
 
 
 int main(int argc, char** argv) try {
@@ -147,6 +161,20 @@ int main(int argc, char** argv) try {
     cl::Program cl_rhs_program{cl_context, cl_rhs_sources};
     cl_rhs_program.build({device});
 
+    // progam: solver
+    cl::Program::Sources cl_solver_sources;
+    cl_solver_sources.push_back(core::kernel::resources::solver_cl.to_string());
+
+    cl::Program cl_solver_program{cl_context, cl_solver_sources};
+    cl_solver_program.build({device});
+
+    // progam: velocities (calculate updated velocities)
+    cl::Program::Sources cl_velocities_sources;
+    cl_velocities_sources.push_back(core::kernel::resources::velocities_cl.to_string());
+
+    cl::Program cl_velocities_program{cl_context, cl_velocities_sources};
+    cl_velocities_program.build({device});
+
 
     cl::CommandQueue cl_queue{cl_context, device};
 
@@ -225,7 +253,12 @@ int main(int argc, char** argv) try {
     auto cl_image = cl::ImageGL{cl_context, CL_MEM_WRITE_ONLY, texture.target(), 0, texture.handle()};
     auto cl_req = std::vector<cl::Memory>{cl_image};
 
+    float t = 0.0;
+
+    VisualTarget visual = VisualTarget::UVAbsCentered;
+
     bool running = true;
+    bool cont = false;
     while (running) {
         SDL_Event e;
 
@@ -244,17 +277,37 @@ int main(int argc, char** argv) try {
             }
 
             else if (e.type == SDL_KEYDOWN && e.key.windowID == window.id()) {
-                if (e.key.keysym.sym == SDLK_l) {
+                if (e.key.keysym.sym == SDLK_RETURN) {
+                    cont = true;
+                } else if (e.key.keysym.sym == SDLK_l) {
                     visualizer.set_sampler(vis::SamplerType::Linear);
                 } else if (e.key.keysym.sym == SDLK_n) {
                     visualizer.set_sampler(vis::SamplerType::Nearest);
                 } else if (e.key.keysym.sym == SDLK_q) {
                     running = false;
+
+                } else if (e.key.keysym.sym == SDLK_1) {
+                    visual = VisualTarget::UVAbsCentered;
+                } else if (e.key.keysym.sym == SDLK_2) {
+                    visual = VisualTarget::U;
+                } else if (e.key.keysym.sym == SDLK_3) {
+                    visual = VisualTarget::V;
+                } else if (e.key.keysym.sym == SDLK_4) {
+                    visual = VisualTarget::P;
+                } else if (e.key.keysym.sym == SDLK_5) {
+                    visual = VisualTarget::F;
+                } else if (e.key.keysym.sym == SDLK_6) {
+                    visual = VisualTarget::G;
+                } else if (e.key.keysym.sym == SDLK_7) {
+                    visual = VisualTarget::Rhs;
+                } else if (e.key.keysym.sym == SDLK_8) {
+                    visual = VisualTarget::BoundaryTypes;
                 }
             }
         }
 
-
+        for (int i = 0; i < 100; i++) {
+        // if (cont) { cont = false;
         {   // set u boundary
             cl::Kernel kernel_boundary_u{cl_boundaries_program, "set_boundary_u"};
             kernel_boundary_u.setArg(0, buf_u);
@@ -275,7 +328,7 @@ int main(int argc, char** argv) try {
             cl_queue.enqueueNDRangeKernel(kernel_boundary_v, cl::NullRange, range, cl::NullRange);
         }
 
-        {   // set pressure boundary
+        {   // set pressure boundary    // TODO: only required initially
             cl::Kernel kernel_boundary_p{cl_boundaries_program, "set_boundary_p"};
             kernel_boundary_p.setArg(0, buf_p);
             kernel_boundary_p.setArg(1, buf_boundary);
@@ -334,63 +387,134 @@ int main(int argc, char** argv) try {
             cl_queue.enqueueNDRangeKernel(kernel_rhs, cl::NullRange, range, cl::NullRange);
         }
 
-        // TODO: run solver
+        {   // calculate rhs
+            cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
 
-        // TODO: calculate new velocities
+            cl::Kernel kernel_rhs{cl_rhs_program, "compute_rhs"};
+            kernel_rhs.setArg(0, buf_f);
+            kernel_rhs.setArg(1, buf_g);
+            kernel_rhs.setArg(2, buf_rhs);
+            kernel_rhs.setArg(3, buf_boundary);
+            kernel_rhs.setArg(4, static_cast<cl_float>(params.dt));
+            kernel_rhs.setArg(5, h);
+
+            auto range = cl::NDRange(SIMULATION_SIZE.x - 2, SIMULATION_SIZE.y - 2);
+            cl_queue.enqueueNDRangeKernel(kernel_rhs, cl::NullRange, range, cl::NullRange);
+        }
+
+        {   // run solver
+            cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
+
+            cl::Kernel kernel_red{cl_solver_program, "cycle_red"};
+            kernel_red.setArg(0, buf_p);
+            kernel_red.setArg(1, buf_rhs);
+            kernel_red.setArg(2, h);
+            kernel_red.setArg(3, static_cast<cl_float>(params.omega));
+
+            cl::Kernel kernel_black{cl_solver_program, "cycle_black"};
+            kernel_black.setArg(0, buf_p);
+            kernel_black.setArg(1, buf_rhs);
+            kernel_black.setArg(2, h);
+            kernel_black.setArg(3, static_cast<cl_float>(params.omega));
+
+            int_t y_cells_black = (SIMULATION_SIZE.y - 2) / 2;
+            auto range_red = cl::NDRange(SIMULATION_SIZE.x - 2, SIMULATION_SIZE.y - 2 - y_cells_black);
+            auto range_black = cl::NDRange(SIMULATION_SIZE.x - 2, y_cells_black);
+
+            for (int_t i = 0; i < params.itermax; i++) {
+                cl_queue.enqueueNDRangeKernel(kernel_red, cl::NullRange, range_red, cl::NullRange);
+                cl_queue.enqueueNDRangeKernel(kernel_black, cl::NullRange, range_black, cl::NullRange);
+            }
+
+            {   // set pressure boundary
+                cl::Kernel kernel_boundary_p{cl_boundaries_program, "set_boundary_p"};
+                kernel_boundary_p.setArg(0, buf_p);
+                kernel_boundary_p.setArg(1, buf_boundary);
+                kernel_boundary_p.setArg(2, static_cast<cl_float>(geom.boundary_pressure()));
+
+                auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+                cl_queue.enqueueNDRangeKernel(kernel_boundary_p, cl::NullRange, range, cl::NullRange);
+            }
+        }
+
+        {   // calculate new velocities
+            cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
+
+            cl::Kernel kernel{cl_velocities_program, "new_velocities"};
+            kernel.setArg(0, buf_p);
+            kernel.setArg(1, buf_f);
+            kernel.setArg(2, buf_g);
+            kernel.setArg(3, buf_u);
+            kernel.setArg(4, buf_v);
+            kernel.setArg(5, buf_boundary);
+            kernel.setArg(6, static_cast<cl_float>(params.dt));
+            kernel.setArg(7, h);
+
+            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
+        }
+
+        t += params.dt;
+        }
+        std::cout << "time: " << t << "\n";
 
         // write to texture via OpenCL
-        glFlush();
+        glFinish();
+        cl_queue.finish();
         cl_queue.enqueueAcquireGLObjects(&cl_req);
 
         {
-            // // visualize boundary types
-            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_boundaries"};
-            // kernel_vis.setArg(0, cl_image);
-            // kernel_vis.setArg(1, buf_boundary);
+            cl::Kernel kernel;
 
-            // // visualize pressure
-            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_p"};
-            // kernel_vis.setArg(0, cl_image);
-            // kernel_vis.setArg(1, buf_p);
+            if (visual == VisualTarget::BoundaryTypes) {
+                kernel = {cl_visualize_program, "visualize_boundaries"};
+                kernel.setArg(0, cl_image);
+                kernel.setArg(1, buf_boundary);
 
-            // // visualize velocity u
-            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_u_center"};
-            // kernel_vis.setArg(0, cl_image);
-            // kernel_vis.setArg(1, buf_u);
+            } else if (visual == VisualTarget::P) {
+                kernel = {cl_visualize_program, "visualize_p"};
+                kernel.setArg(0, cl_image);
+                kernel.setArg(1, buf_p);
 
-            // // visualize velocity v
-            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_v_center"};
-            // kernel_vis.setArg(0, cl_image);
-            // kernel_vis.setArg(1, buf_v);
+            } else if (visual == VisualTarget::U) {
+                kernel = {cl_visualize_program, "visualize_u"};
+                kernel.setArg(0, cl_image);
+                kernel.setArg(1, buf_u);
 
-            // // visualize absolute velocity
-            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_uv_abs_center"};
-            // kernel_vis.setArg(0, cl_image);
-            // kernel_vis.setArg(1, buf_u);
-            // kernel_vis.setArg(2, buf_v);
+            } else if (visual == VisualTarget::V) {
+                kernel = {cl_visualize_program, "visualize_v"};
+                kernel.setArg(0, cl_image);
+                kernel.setArg(1, buf_v);
 
-            // // visualize preliminary velocity f
-            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_u"};
-            // kernel_vis.setArg(0, cl_image);
-            // kernel_vis.setArg(1, buf_f);
+            } else if (visual == VisualTarget::UVAbsCentered) {
+                kernel = {cl_visualize_program, "visualize_uv_abs_center"};
+                kernel.setArg(0, cl_image);
+                kernel.setArg(1, buf_u);
+                kernel.setArg(2, buf_v);
 
-            // // visualize preliminary velocity g
-            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_v"};
-            // kernel_vis.setArg(0, cl_image);
-            // kernel_vis.setArg(1, buf_g);
+            } else if (visual == VisualTarget::F) {
+                kernel = {cl_visualize_program, "visualize_u"};
+                kernel.setArg(0, cl_image);
+                kernel.setArg(1, buf_f);
 
-            // visualize rhs
-            cl::Kernel kernel_vis{cl_visualize_program, "visualize_rhs"};
-            kernel_vis.setArg(0, cl_image);
-            kernel_vis.setArg(1, buf_rhs);
+            } else if (visual == VisualTarget::G) {
+                kernel = {cl_visualize_program, "visualize_v"};
+                kernel.setArg(0, cl_image);
+                kernel.setArg(1, buf_g);
+
+            } else if (visual == VisualTarget::Rhs) {
+                kernel = {cl_visualize_program, "visualize_rhs"};
+                kernel.setArg(0, cl_image);
+                kernel.setArg(1, buf_rhs);
+            }
 
             auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
-            cl_queue.enqueueNDRangeKernel(kernel_vis, cl::NullRange, range, cl::NullRange);
+            cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
         }
 
+        cl_queue.finish();
         cl_queue.enqueueReleaseGLObjects(&cl_req);
-        cl_queue.flush();
-
+        cl_queue.finish();
 
         // render via OpenGL
         glClear(GL_COLOR_BUFFER_BIT);
@@ -410,6 +534,12 @@ int main(int argc, char** argv) try {
         std::cout << entry.second << "\n";
     }
     std::cerr << "--------------------------------------------------------------------------------\n";
+    throw err;
+
+} catch (cl::Error const& err) {
+    std::cerr << "OpenCL Error:\n";
+    std::cerr << "  What: " << err.what() << "\n";
+    std::cerr << "  Code: " << err.err() << "\n";
     throw err;
 
 } catch (opengl::CompileError const& err) {
