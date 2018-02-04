@@ -27,14 +27,14 @@
 //! where n * m is the size of the interior.
 //!
 __kernel void momentum_eq_f(
-    __read_only __global float* u,
-    __read_only __global float* v,
-    __write_only __global float* f,
-    __read_only __global uchar* b,
-    __read_only float alpha,
-    __read_only float re,
-    __read_only float dt,
-    __read_only float2 h
+    __constant float* u,
+    __constant float* v,
+    __global float* f,
+    __constant uchar* b,
+    const float alpha,
+    const float re,
+    const float dt,
+    const float2 h
 ) {
     const int2 pos = (int2)(get_global_id(0) + 1, get_global_id(1));
     // assumes: pos.x > 0 && pos.x < (len.x - 1) && pos.y > 0 && pos.y < (len.y - 1)
@@ -105,14 +105,14 @@ __kernel void momentum_eq_f(
 //! where n * m is the size of the interior.
 //!
 __kernel void momentum_eq_g(
-    __read_only __global float* u,
-    __read_only __global float* v,
-    __write_only __global float* g,
-    __read_only __global uchar* b,
-    __read_only float alpha,
-    __read_only float re,
-    __read_only float dt,
-    __read_only float2 h
+    __constant float* u,
+    __constant float* v,
+    __global float* g,
+    __constant uchar* b,
+    const float alpha,
+    const float re,
+    const float dt,
+    const float2 h
 ) {
     const int2 pos = (int2)(get_global_id(0), get_global_id(1) + 1);
     // assumes: pos.x > 0 && pos.x < (len.x - 1) && pos.y > 0 && pos.y < (len.y - 1)

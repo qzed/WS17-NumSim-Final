@@ -29,14 +29,14 @@
 //! where n * m is the size of the interior.
 //!
 __kernel void new_velocities(
-    __read_only __global float* p,
-    __read_only __global float* f,
-    __read_only __global float* g,
-    __write_only __global float* u,
-    __write_only __global float* v,
-    __read_only __global uchar* b,
-    __read_only float dt,
-    __read_only float2 h
+    __constant float* p,
+    __constant float* f,
+    __constant float* g,
+    __global float* u,
+    __global float* v,
+    __constant uchar* b,
+    const float dt,
+    const float2 h
 ) {
     const int2 pos = (int2)(get_global_id(0), get_global_id(1));
     // assumes: pos.x >= 0 && pos.x <= (len - 1) && pos.y >= 0 && pos.y <= (len - 1)
