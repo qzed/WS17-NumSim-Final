@@ -40,6 +40,8 @@ add_custom_command(
         "core::kernel::resources::momentum_cl"   "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/momentum.cl"
         "core::kernel::resources::rhs_cl"        "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/rhs.cl"
         "core::kernel::resources::velocities_cl" "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/velocities.cl"
+        "core::kernel::resources::solver_cl"     "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/solver.cl"
+        "core::kernel::resources::zero_cl"       "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/zero.cl"
         "core::kernel::resources::visualize_cl"  "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/visualize.cl"
         "core::kernel::resources::debug_cl"      "${CMAKE_CURRENT_SOURCE_DIR}/src/core/kernel/debug.cl"
     DEPENDS
@@ -47,6 +49,8 @@ add_custom_command(
         "src/core/kernel/momentum.cl"
         "src/core/kernel/rhs.cl"
         "src/core/kernel/velocities.cl"
+        "src/core/kernel/solver.cl"
+        "src/core/kernel/zero.cl"
         "src/core/kernel/visualize.cl"
         "src/core/kernel/debug.cl"
 )

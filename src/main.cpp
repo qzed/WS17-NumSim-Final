@@ -112,6 +112,13 @@ int main(int argc, char** argv) try {
 
     auto cl_context = cl::Context(device, properties.data());
 
+    // progam: zero
+    cl::Program::Sources cl_zero_sources;
+    cl_zero_sources.push_back(core::kernel::resources::zero_cl.to_string());
+
+    cl::Program cl_zero_program{cl_context, cl_zero_sources};
+    cl_zero_program.build({device});
+
     // progam: visualize
     cl::Program::Sources cl_visualize_sources;
     cl_visualize_sources.push_back(core::kernel::resources::visualize_cl.to_string());
@@ -147,28 +154,69 @@ int main(int argc, char** argv) try {
     auto buf_boundary = cl::Buffer{cl_context, CL_MEM_READ_ONLY, geom.data().size() * sizeof(std::uint8_t)};
     cl::copy(cl_queue, geom.data().begin(), geom.data().end(), buf_boundary);
 
-    // initialize component buffers
+    // create component buffers
     auto buf_u_size = (SIMULATION_SIZE.x + 1) * SIMULATION_SIZE.y * sizeof(cl_float);
     auto buf_u = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_u_size};
-    cl_queue.enqueueFillBuffer(buf_u, static_cast<cl_float>(0.0), 0, buf_u_size);
+    auto buf_f = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_u_size};
 
     auto buf_v_size = SIMULATION_SIZE.x * (SIMULATION_SIZE.y + 1) * sizeof(cl_float);
     auto buf_v = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_v_size};
-    cl_queue.enqueueFillBuffer(buf_v, static_cast<cl_float>(0.0), 0, buf_v_size);
-
-    auto buf_f = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_u_size};
-    cl_queue.enqueueFillBuffer(buf_f, static_cast<cl_float>(0.0), 0, buf_u_size);
-
     auto buf_g = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_v_size};
-    cl_queue.enqueueFillBuffer(buf_g, static_cast<cl_float>(0.0), 0, buf_v_size);
 
     auto buf_p_size = SIMULATION_SIZE.x * SIMULATION_SIZE.y * sizeof(cl_float);
     auto buf_p = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_p_size};
-    cl_queue.enqueueFillBuffer(buf_p, static_cast<cl_float>(0.0), 0, buf_p_size);
 
     auto buf_rhs_size = (SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2) * sizeof(cl_float);
     auto buf_rhs = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_rhs_size};
-    cl_queue.enqueueFillBuffer(buf_rhs, static_cast<cl_float>(0.0), 0, buf_rhs_size);
+
+    {   // initialize u
+        cl::Kernel kernel{cl_zero_program, "zero_float"};
+        kernel.setArg(0, buf_u);
+
+        auto range = cl::NDRange((SIMULATION_SIZE.x + 1) * SIMULATION_SIZE.y);
+        cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
+    }
+
+    {   // initialize v
+        cl::Kernel kernel{cl_zero_program, "zero_float"};
+        kernel.setArg(0, buf_v);
+
+        auto range = cl::NDRange(SIMULATION_SIZE.x * (SIMULATION_SIZE.y + 1));
+        cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
+    }
+
+    {   // initialize f
+        cl::Kernel kernel{cl_zero_program, "zero_float"};
+        kernel.setArg(0, buf_f);
+
+        auto range = cl::NDRange((SIMULATION_SIZE.x + 1) * SIMULATION_SIZE.y);
+        cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
+    }
+
+    {   // initialize g
+        cl::Kernel kernel{cl_zero_program, "zero_float"};
+        kernel.setArg(0, buf_g);
+
+        auto range = cl::NDRange(SIMULATION_SIZE.x * (SIMULATION_SIZE.y + 1));
+        cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
+    }
+
+    {   // initialize p
+        cl::Kernel kernel{cl_zero_program, "zero_float"};
+        kernel.setArg(0, buf_p);
+
+        auto range = cl::NDRange(SIMULATION_SIZE.x * SIMULATION_SIZE.y);
+        cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
+    }
+
+    {   // initialize rhs
+        cl::Kernel kernel{cl_zero_program, "zero_float"};
+        kernel.setArg(0, buf_rhs);
+
+        auto range = cl::NDRange((SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2));
+        cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
+    }
+
 
     glClearColor(0.0, 0.0, 0.0, 1.0);
 
@@ -237,8 +285,6 @@ int main(int argc, char** argv) try {
             cl_queue.enqueueNDRangeKernel(kernel_boundary_p, cl::NullRange, range, cl::NullRange);
         }
 
-        cl_queue.flush();   // necessary?
-
         {   // calculate preliminary velocities: f
             cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
 
@@ -255,8 +301,6 @@ int main(int argc, char** argv) try {
             auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
             cl_queue.enqueueNDRangeKernel(kernel_momentum_f, cl::NullRange, range, cl::NullRange);
         }
-
-        cl_queue.flush();   // necessary?
 
         {   // calculate preliminary velocities: f
             cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
@@ -275,8 +319,6 @@ int main(int argc, char** argv) try {
             cl_queue.enqueueNDRangeKernel(kernel_momentum_g, cl::NullRange, range, cl::NullRange);
         }
 
-        cl_queue.flush();   // necessary?
-
         {   // calculate rhs
             cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
 
@@ -292,7 +334,9 @@ int main(int argc, char** argv) try {
             cl_queue.enqueueNDRangeKernel(kernel_rhs, cl::NullRange, range, cl::NullRange);
         }
 
-        cl_queue.flush();   // necessary?
+        // TODO: run solver
+
+        // TODO: calculate new velocities
 
         // write to texture via OpenCL
         glFlush();
