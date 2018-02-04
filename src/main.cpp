@@ -474,14 +474,16 @@ int main(int argc, char** argv) try {
             cl::Kernel kernel_red{cl_solver_program, "cycle_red"};
             kernel_red.setArg(0, buf_p);
             kernel_red.setArg(1, buf_rhs);
-            kernel_red.setArg(2, h);
-            kernel_red.setArg(3, static_cast<cl_float>(params.omega));
+            kernel_red.setArg(2, buf_boundary);
+            kernel_red.setArg(3, h);
+            kernel_red.setArg(4, static_cast<cl_float>(params.omega));
 
             cl::Kernel kernel_black{cl_solver_program, "cycle_black"};
             kernel_black.setArg(0, buf_p);
             kernel_black.setArg(1, buf_rhs);
-            kernel_black.setArg(2, h);
-            kernel_black.setArg(3, static_cast<cl_float>(params.omega));
+            kernel_black.setArg(2, buf_boundary);
+            kernel_black.setArg(3, h);
+            kernel_black.setArg(4, static_cast<cl_float>(params.omega));
 
             int_t y_cells_black = (SIMULATION_SIZE.y - 2) / 2;
             auto range_red = cl::NDRange(SIMULATION_SIZE.x - 2, SIMULATION_SIZE.y - 2 - y_cells_black);

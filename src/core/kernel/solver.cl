@@ -18,7 +18,8 @@
 
 __kernel void cycle_red(
     __global float* p,              // (n + 2) * (m + 2)
-    __global float* rhs,          // n * m
+    __global const float* rhs,      // n * m
+    __global const uchar* b,        // (n + 2) * (m + 2)
     const float2 h,
     const float omega
 ) {
@@ -31,6 +32,13 @@ __kernel void cycle_red(
 
     const int rhs_size_x = get_global_size(0);
     const int p_size_x = rhs_size_x + 2;
+    const int b_size_x = p_size_x;
+
+    // make sure that this is a fluid cell
+    const uchar b_self = b[INDEX(pos.x + 1, pos.y + 1, b_size_x)] & BC_MASK_SELF;
+    if (b_self != BC_SELF_FLUID) {
+        return;
+    }
 
     // load p
     const float p_cell   = p[INDEX(pos.x + 1, pos.y + 1, p_size_x)];
@@ -58,7 +66,8 @@ __kernel void cycle_red(
 
 __kernel void cycle_black(
     __global float* p,              // (n + 2) * (m + 2)
-    __global float* rhs,          // n * m
+    __global const float* rhs,      // n * m
+    __global const uchar* b,        // (n + 2) * (m + 2)
     const float2 h,
     const float omega
 ) {
@@ -71,6 +80,13 @@ __kernel void cycle_black(
 
     const int rhs_size_x = get_global_size(0);
     const int p_size_x = rhs_size_x + 2;
+    const int b_size_x = p_size_x;
+
+    // make sure that this is a fluid cell
+    const uchar b_self = b[INDEX(pos.x + 1, pos.y + 1, b_size_x)] & BC_MASK_SELF;
+    if (b_self != BC_SELF_FLUID) {
+        return;
+    }
 
     // load p
     const float p_cell   = p[INDEX(pos.x + 1, pos.y + 1, p_size_x)];
