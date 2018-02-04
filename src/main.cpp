@@ -19,13 +19,23 @@
 #include "core/parameters.hpp"
 #include "core/geometry.hpp"
 
+#include "utils/pad.hpp"
+
 #include <iostream>
 #include <iomanip>
+#include <algorithm>
 
 
 const std::string WINDOW_TITLE = "Numerical Simulations Course 2017/18";
 const ivec2 INITIAL_SCREEN_SIZE = {800, 800};
 const ivec2 SIMULATION_SIZE = {128, 128};
+
+const char* OCL_COMPILER_OPTIONS =
+    "-cl-single-precision-constant "
+    "-cl-denorms-are-zero "
+    "-cl-strict-aliasing "
+    "-cl-fast-relaxed-math "
+    "-Werror";
 
 
 enum class VisualTarget {
@@ -131,49 +141,56 @@ int main(int argc, char** argv) try {
     cl_zero_sources.push_back(core::kernel::resources::zero_cl.to_string());
 
     cl::Program cl_zero_program{cl_context, cl_zero_sources};
-    cl_zero_program.build({device});
+    cl_zero_program.build({device}, OCL_COMPILER_OPTIONS);
 
     // progam: visualize
     cl::Program::Sources cl_visualize_sources;
     cl_visualize_sources.push_back(core::kernel::resources::visualize_cl.to_string());
 
     cl::Program cl_visualize_program{cl_context, cl_visualize_sources};
-    cl_visualize_program.build({device});
+    cl_visualize_program.build({device}, OCL_COMPILER_OPTIONS);
 
     // progam: boundaries
     cl::Program::Sources cl_boundaries_sources;
     cl_boundaries_sources.push_back(core::kernel::resources::boundaries_cl.to_string());
 
     cl::Program cl_boundaries_program{cl_context, cl_boundaries_sources};
-    cl_boundaries_program.build({device});
+    cl_boundaries_program.build({device}, OCL_COMPILER_OPTIONS);
 
     // progam: momentum (preliminary velocities)
     cl::Program::Sources cl_momentum_sources;
     cl_momentum_sources.push_back(core::kernel::resources::momentum_cl.to_string());
 
     cl::Program cl_momentum_program{cl_context, cl_momentum_sources};
-    cl_momentum_program.build({device});
+    cl_momentum_program.build({device}, OCL_COMPILER_OPTIONS);
 
     // progam: rhs (right-hand-side of pressure equation)
     cl::Program::Sources cl_rhs_sources;
     cl_rhs_sources.push_back(core::kernel::resources::rhs_cl.to_string());
 
     cl::Program cl_rhs_program{cl_context, cl_rhs_sources};
-    cl_rhs_program.build({device});
+    cl_rhs_program.build({device}, OCL_COMPILER_OPTIONS);
 
     // progam: solver
     cl::Program::Sources cl_solver_sources;
     cl_solver_sources.push_back(core::kernel::resources::solver_cl.to_string());
 
     cl::Program cl_solver_program{cl_context, cl_solver_sources};
-    cl_solver_program.build({device});
+    cl_solver_program.build({device}, OCL_COMPILER_OPTIONS);
 
     // progam: velocities (calculate updated velocities)
     cl::Program::Sources cl_velocities_sources;
     cl_velocities_sources.push_back(core::kernel::resources::velocities_cl.to_string());
 
     cl::Program cl_velocities_program{cl_context, cl_velocities_sources};
-    cl_velocities_program.build({device});
+    cl_velocities_program.build({device}, OCL_COMPILER_OPTIONS);
+
+    // progam: reduce (calculate updated reduce)
+    cl::Program::Sources cl_reduce_sources;
+    cl_reduce_sources.push_back(core::kernel::resources::reduce_cl.to_string());
+
+    cl::Program cl_reduce_program{cl_context, cl_reduce_sources};
+    cl_reduce_program.build({device}, OCL_COMPILER_OPTIONS);
 
 
     cl::CommandQueue cl_queue{cl_context, device};
@@ -196,6 +213,23 @@ int main(int argc, char** argv) try {
 
     auto buf_rhs_size = (SIMULATION_SIZE.x - 2) * (SIMULATION_SIZE.y - 2) * sizeof(cl_float);
     auto buf_rhs = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_rhs_size};
+
+    // initialize reduction stuff
+    uint_t const reduce_u_size = (SIMULATION_SIZE.x + 1) * SIMULATION_SIZE.y;
+    uint_t const reduce_v_size = SIMULATION_SIZE.x * (SIMULATION_SIZE.y + 1);
+    uint_t const reduce_local_size = 128;
+
+    uint_t const reduce_global_size_u = utils::pad_up(reduce_u_size, reduce_local_size);
+    uint_t const reduce_global_size_v = utils::pad_up(reduce_v_size, reduce_local_size);
+
+    uint_t const reduce_output_size_u = reduce_global_size_u / reduce_local_size;
+    uint_t const reduce_output_size_v = reduce_global_size_v / reduce_local_size;
+
+    auto buf_reduce_out_u = cl::Buffer{cl_context, CL_MEM_WRITE_ONLY, reduce_output_size_u * sizeof(cl_float)};
+    auto buf_reduce_out_v = cl::Buffer{cl_context, CL_MEM_WRITE_ONLY, reduce_output_size_v * sizeof(cl_float)};
+
+    auto vec_reduce_out_u = std::vector<cl_float>(reduce_output_size_u);
+    auto vec_reduce_out_v = std::vector<cl_float>(reduce_output_size_v);
 
     {   // initialize u
         cl::Kernel kernel{cl_zero_program, "zero_float"};
@@ -253,7 +287,8 @@ int main(int argc, char** argv) try {
     auto cl_image = cl::ImageGL{cl_context, CL_MEM_WRITE_ONLY, texture.target(), 0, texture.handle()};
     auto cl_req = std::vector<cl::Memory>{cl_image};
 
-    float t = 0.0;
+    real_t t = 0.0;
+    real_t dt = params.dt;
 
     VisualTarget visual = VisualTarget::UVAbsCentered;
 
@@ -338,6 +373,37 @@ int main(int argc, char** argv) try {
             cl_queue.enqueueNDRangeKernel(kernel_boundary_p, cl::NullRange, range, cl::NullRange);
         }
 
+        {   // calculate new dt
+
+            // calculate maximum absolutes for u and v
+            cl::Kernel kernel_u{cl_reduce_program, "reduce_max_abs"};
+            kernel_u.setArg(0, buf_u);
+            kernel_u.setArg(1, buf_reduce_out_u);
+            kernel_u.setArg(2, cl::Local(reduce_local_size * sizeof(cl_float)));
+            kernel_u.setArg(3, static_cast<cl_uint>(reduce_u_size));
+
+            cl_queue.enqueueNDRangeKernel(kernel_u, cl::NullRange, cl::NDRange(reduce_global_size_u), cl::NDRange(reduce_local_size));
+
+            cl::Kernel kernel_v{cl_reduce_program, "reduce_max_abs"};
+            kernel_v.setArg(0, buf_v);
+            kernel_v.setArg(1, buf_reduce_out_v);
+            kernel_v.setArg(2, cl::Local(reduce_local_size * sizeof(cl_float)));
+            kernel_v.setArg(3, static_cast<cl_uint>(reduce_v_size));
+
+            cl_queue.enqueueNDRangeKernel(kernel_v, cl::NullRange, cl::NDRange(reduce_global_size_v), cl::NDRange(reduce_local_size));
+
+            cl::copy(cl_queue, buf_reduce_out_u, vec_reduce_out_u.begin(), vec_reduce_out_u.end());
+            cl::copy(cl_queue, buf_reduce_out_v, vec_reduce_out_v.begin(), vec_reduce_out_v.end());
+
+            real_t u_abs_max = static_cast<real_t>(*std::max_element(vec_reduce_out_u.begin(), vec_reduce_out_u.end()));
+            real_t v_abs_max = static_cast<real_t>(*std::max_element(vec_reduce_out_v.begin(), vec_reduce_out_v.end()));
+
+            rvec2 const d = geom.mesh();
+            real_t const dt_diff = ((d.x*d.x * d.y*d.y) / (d.x*d.x + d.y*d.y)) * params.re * static_cast<real_t>(0.5);
+            real_t const dt_conv = std::min(d.x / u_abs_max, d.y / v_abs_max);
+            dt = std::min(params.dt, params.tau * std::min(dt_diff, dt_conv));
+        }
+
         {   // calculate preliminary velocities: f
             cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
 
@@ -348,7 +414,7 @@ int main(int argc, char** argv) try {
             kernel_momentum_f.setArg(3, buf_boundary);
             kernel_momentum_f.setArg(4, static_cast<cl_float>(params.alpha));
             kernel_momentum_f.setArg(5, static_cast<cl_float>(params.re));
-            kernel_momentum_f.setArg(6, static_cast<cl_float>(params.dt));
+            kernel_momentum_f.setArg(6, static_cast<cl_float>(dt));
             kernel_momentum_f.setArg(7, h);
 
             auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
@@ -365,7 +431,7 @@ int main(int argc, char** argv) try {
             kernel_momentum_g.setArg(3, buf_boundary);
             kernel_momentum_g.setArg(4, static_cast<cl_float>(params.alpha));
             kernel_momentum_g.setArg(5, static_cast<cl_float>(params.re));
-            kernel_momentum_g.setArg(6, static_cast<cl_float>(params.dt));
+            kernel_momentum_g.setArg(6, static_cast<cl_float>(dt));
             kernel_momentum_g.setArg(7, h);
 
             auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
@@ -380,7 +446,7 @@ int main(int argc, char** argv) try {
             kernel_rhs.setArg(1, buf_g);
             kernel_rhs.setArg(2, buf_rhs);
             kernel_rhs.setArg(3, buf_boundary);
-            kernel_rhs.setArg(4, static_cast<cl_float>(params.dt));
+            kernel_rhs.setArg(4, static_cast<cl_float>(dt));
             kernel_rhs.setArg(5, h);
 
             auto range = cl::NDRange(SIMULATION_SIZE.x - 2, SIMULATION_SIZE.y - 2);
@@ -395,7 +461,7 @@ int main(int argc, char** argv) try {
             kernel_rhs.setArg(1, buf_g);
             kernel_rhs.setArg(2, buf_rhs);
             kernel_rhs.setArg(3, buf_boundary);
-            kernel_rhs.setArg(4, static_cast<cl_float>(params.dt));
+            kernel_rhs.setArg(4, static_cast<cl_float>(dt));
             kernel_rhs.setArg(5, h);
 
             auto range = cl::NDRange(SIMULATION_SIZE.x - 2, SIMULATION_SIZE.y - 2);
@@ -447,16 +513,17 @@ int main(int argc, char** argv) try {
             kernel.setArg(3, buf_u);
             kernel.setArg(4, buf_v);
             kernel.setArg(5, buf_boundary);
-            kernel.setArg(6, static_cast<cl_float>(params.dt));
+            kernel.setArg(6, static_cast<cl_float>(dt));
             kernel.setArg(7, h);
 
             auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
             cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
         }
 
-        t += params.dt;
+        t += dt;
         }
         std::cout << "time: " << t << "\n";
+        std::cout << "dt:   " << dt << "\n";
 
         // write to texture via OpenCL
         glFinish();
