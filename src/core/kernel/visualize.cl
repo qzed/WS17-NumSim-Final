@@ -22,7 +22,7 @@
 //! Write the specified boundary types to the output image.
 kernel void visualize_boundaries(
     __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __constant uchar* b                 // (n + 2) * (m + 2)
+    __global uchar* b                 // (n + 2) * (m + 2)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
     const int size_x = get_global_size(0);
@@ -47,7 +47,7 @@ kernel void visualize_boundaries(
 
 kernel void visualize_p(
     __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __constant float* p                 // (n + 2) * (m + 2)
+    __global float* p                 // (n + 2) * (m + 2)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
     const int size_x = get_global_size(0);
@@ -58,7 +58,7 @@ kernel void visualize_p(
 
 kernel void visualize_rhs(
     __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __constant float* rhs               // n * m
+    __global float* rhs               // n * m
 ) {
     const int2 pos = (int2)(get_global_id(0), get_global_id(1));
     const int2 size = (int2)(get_global_size(0), get_global_size(1));
@@ -74,19 +74,19 @@ kernel void visualize_rhs(
 
 kernel void visualize_u(
     __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __constant float* u                 // (n + 3) * (m + 2)
+    __global float* u                 // (n + 3) * (m + 2)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
     const int u_size_x = get_global_size(0) + 1;
 
-    const float val = u[INDEX(pos.x + 1, pos.y, u_size_x)];
+    float val = u[INDEX(pos.x + 1, pos.y, u_size_x)];
 
     write_imagef(output, pos, (float4)(val, 0.0, 0.0, 0.0));
 }
 
 kernel void visualize_u_center(
     __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __constant float* u                 // (n + 3) * (m + 2)
+    __global float* u                 // (n + 3) * (m + 2)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
     const int u_size_x = get_global_size(0) + 1;
@@ -101,7 +101,7 @@ kernel void visualize_u_center(
 
 kernel void visualize_v(
     __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __constant float* v                 // (n + 2) * (m + 3)
+    __global float* v                 // (n + 2) * (m + 3)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
     const int v_size_x = get_global_size(0);
@@ -113,7 +113,7 @@ kernel void visualize_v(
 
 kernel void visualize_v_center(
     __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __constant float* v                 // (n + 2) * (m + 3)
+    __global float* v                 // (n + 2) * (m + 3)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
     const int v_size_x = get_global_size(0);
@@ -128,8 +128,8 @@ kernel void visualize_v_center(
 
 kernel void visualize_uv_abs(
     __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __constant float* u,                // (n + 3) * (m + 2)
-    __constant float* v                 // (n + 2) * (m + 3)
+    __global float* u,                // (n + 3) * (m + 2)
+    __global float* v                 // (n + 2) * (m + 3)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
     const int v_size_x = get_global_size(0);
@@ -144,8 +144,8 @@ kernel void visualize_uv_abs(
 
 kernel void visualize_uv_abs_center(
     __write_only image2d_t output,      // (n + 2) * (m + 2)
-    __constant float* u,                // (n + 3) * (m + 2)
-    __constant float* v                 // (n + 2) * (m + 3)
+    __global float* u,                // (n + 3) * (m + 2)
+    __global float* v                 // (n + 2) * (m + 3)
 ) {
     const int2 pos = {get_global_id(0), get_global_id(1)};
     const int v_size_x = get_global_size(0);

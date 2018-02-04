@@ -29,12 +29,12 @@
 //! where n * m is the size of the interior.
 //!
 __kernel void new_velocities(
-    __constant float* p,
-    __constant float* f,
-    __constant float* g,
+    __global float* p,
+    __global float* f,
+    __global float* g,
     __global float* u,
     __global float* v,
-    __constant uchar* b,
+    __global uchar* b,
     const float dt,
     const float2 h
 ) {
@@ -55,14 +55,20 @@ __kernel void new_velocities(
     // calculate u (only for cell-boundaries inside fluid
     if ((b_cell & BC_MASK_SELF) == BC_SELF_FLUID && BC_IS_NEIGHBOR_RIGHT_FLUID(b_cell)) {
         const float p_right = p[INDEX(pos.x + 1, pos.y, p_size_x)];
+        const float f_center = f[INDEX(pos.x + 1, pos.y, u_size_x)];
+
         const float p_dx_r = (p_right - p_center) / h.x;
+
         u[INDEX(pos.x + 1, pos.y, u_size_x)] = f_center - dt * p_dx_r;
     }
 
     // calculate v (only for cell-boundaries inside fluid
     if ((b_cell & BC_MASK_SELF) == BC_SELF_FLUID && BC_IS_NEIGHBOR_TOP_FLUID(b_cell)) {
         const float p_top = p[INDEX(pos.x, pos.y + 1, p_size_x)];
+        const float g_center = g[INDEX(pos.x, pos.y + 1, v_size_x)];
+
         const float p_dy_r = (p_top - p_center) / h.y;
+
         v[INDEX(pos.x, pos.y + 1, v_size_x)] = g_center - dt * p_dy_r;
     }
 }
