@@ -4,8 +4,6 @@
 #include <fstream>
 #include <algorithm>
 
-#include <iostream>
-
 
 namespace core {
 namespace geometry {
