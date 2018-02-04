@@ -126,6 +126,20 @@ int main(int argc, char** argv) try {
     cl::Program cl_boundaries_program{cl_context, cl_boundaries_sources};
     cl_boundaries_program.build({device});
 
+    // progam: momentum (preliminary velocities)
+    cl::Program::Sources cl_momentum_sources;
+    cl_momentum_sources.push_back(core::kernel::resources::momentum_cl.to_string());
+
+    cl::Program cl_momentum_program{cl_context, cl_momentum_sources};
+    cl_momentum_program.build({device});
+
+    // progam: rhs (right-hand-side of pressure equation)
+    cl::Program::Sources cl_rhs_sources;
+    cl_rhs_sources.push_back(core::kernel::resources::rhs_cl.to_string());
+
+    cl::Program cl_rhs_program{cl_context, cl_rhs_sources};
+    cl_rhs_program.build({device});
+
 
     cl::CommandQueue cl_queue{cl_context, device};
 
@@ -141,6 +155,12 @@ int main(int argc, char** argv) try {
     auto buf_v_size = SIMULATION_SIZE.x * (SIMULATION_SIZE.y + 1) * sizeof(cl_float);
     auto buf_v = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_v_size};
     cl_queue.enqueueFillBuffer(buf_v, static_cast<cl_float>(0.0), 0, buf_v_size);
+
+    auto buf_f = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_u_size};
+    cl_queue.enqueueFillBuffer(buf_f, static_cast<cl_float>(0.0), 0, buf_u_size);
+
+    auto buf_g = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_v_size};
+    cl_queue.enqueueFillBuffer(buf_g, static_cast<cl_float>(0.0), 0, buf_v_size);
 
     auto buf_p_size = SIMULATION_SIZE.x * SIMULATION_SIZE.y * sizeof(cl_float);
     auto buf_p = cl::Buffer{cl_context, CL_MEM_READ_WRITE, buf_p_size};
@@ -217,6 +237,63 @@ int main(int argc, char** argv) try {
             cl_queue.enqueueNDRangeKernel(kernel_boundary_p, cl::NullRange, range, cl::NullRange);
         }
 
+        cl_queue.flush();   // necessary?
+
+        {   // calculate preliminary velocities: f
+            cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
+
+            cl::Kernel kernel_momentum_f{cl_momentum_program, "momentum_eq_f"};
+            kernel_momentum_f.setArg(0, buf_u);
+            kernel_momentum_f.setArg(1, buf_v);
+            kernel_momentum_f.setArg(2, buf_f);
+            kernel_momentum_f.setArg(3, buf_boundary);
+            kernel_momentum_f.setArg(4, static_cast<cl_float>(params.alpha));
+            kernel_momentum_f.setArg(5, static_cast<cl_float>(params.re));
+            kernel_momentum_f.setArg(6, static_cast<cl_float>(params.dt));
+            kernel_momentum_f.setArg(7, h);
+
+            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            cl_queue.enqueueNDRangeKernel(kernel_momentum_f, cl::NullRange, range, cl::NullRange);
+        }
+
+        cl_queue.flush();   // necessary?
+
+        {   // calculate preliminary velocities: f
+            cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
+
+            cl::Kernel kernel_momentum_g{cl_momentum_program, "momentum_eq_g"};
+            kernel_momentum_g.setArg(0, buf_u);
+            kernel_momentum_g.setArg(1, buf_v);
+            kernel_momentum_g.setArg(2, buf_g);
+            kernel_momentum_g.setArg(3, buf_boundary);
+            kernel_momentum_g.setArg(4, static_cast<cl_float>(params.alpha));
+            kernel_momentum_g.setArg(5, static_cast<cl_float>(params.re));
+            kernel_momentum_g.setArg(6, static_cast<cl_float>(params.dt));
+            kernel_momentum_g.setArg(7, h);
+
+            auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
+            cl_queue.enqueueNDRangeKernel(kernel_momentum_g, cl::NullRange, range, cl::NullRange);
+        }
+
+        cl_queue.flush();   // necessary?
+
+        {   // calculate rhs
+            cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
+
+            cl::Kernel kernel_rhs{cl_rhs_program, "compute_rhs"};
+            kernel_rhs.setArg(0, buf_f);
+            kernel_rhs.setArg(1, buf_g);
+            kernel_rhs.setArg(2, buf_rhs);
+            kernel_rhs.setArg(3, buf_boundary);
+            kernel_rhs.setArg(4, static_cast<cl_float>(params.dt));
+            kernel_rhs.setArg(5, h);
+
+            auto range = cl::NDRange(SIMULATION_SIZE.x - 2, SIMULATION_SIZE.y - 2);
+            cl_queue.enqueueNDRangeKernel(kernel_rhs, cl::NullRange, range, cl::NullRange);
+        }
+
+        cl_queue.flush();   // necessary?
+
         // write to texture via OpenCL
         glFlush();
         cl_queue.enqueueAcquireGLObjects(&cl_req);
@@ -233,7 +310,7 @@ int main(int argc, char** argv) try {
             // kernel_vis.setArg(1, buf_p);
 
             // // visualize velocity u
-            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_u"};
+            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_u_center"};
             // kernel_vis.setArg(0, cl_image);
             // kernel_vis.setArg(1, buf_u);
 
@@ -242,11 +319,26 @@ int main(int argc, char** argv) try {
             // kernel_vis.setArg(0, cl_image);
             // kernel_vis.setArg(1, buf_v);
 
-            // visualize absolute velocity
-            cl::Kernel kernel_vis{cl_visualize_program, "visualize_uv_abs_center"};
+            // // visualize absolute velocity
+            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_uv_abs_center"};
+            // kernel_vis.setArg(0, cl_image);
+            // kernel_vis.setArg(1, buf_u);
+            // kernel_vis.setArg(2, buf_v);
+
+            // // visualize preliminary velocity f
+            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_u"};
+            // kernel_vis.setArg(0, cl_image);
+            // kernel_vis.setArg(1, buf_f);
+
+            // // visualize preliminary velocity g
+            // cl::Kernel kernel_vis{cl_visualize_program, "visualize_v"};
+            // kernel_vis.setArg(0, cl_image);
+            // kernel_vis.setArg(1, buf_g);
+
+            // visualize rhs
+            cl::Kernel kernel_vis{cl_visualize_program, "visualize_rhs"};
             kernel_vis.setArg(0, cl_image);
-            kernel_vis.setArg(1, buf_u);
-            kernel_vis.setArg(2, buf_v);
+            kernel_vis.setArg(1, buf_rhs);
 
             auto range = cl::NDRange(SIMULATION_SIZE.x, SIMULATION_SIZE.y);
             cl_queue.enqueueNDRangeKernel(kernel_vis, cl::NullRange, range, cl::NullRange);

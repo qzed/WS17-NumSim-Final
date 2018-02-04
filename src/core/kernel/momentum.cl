@@ -36,7 +36,7 @@ __kernel void momentum_eq_f(
     __read_only float dt,
     __read_only float2 h
 ) {
-    const int2 pos = (int2)(get_global_id(0), get_global_id(1));
+    const int2 pos = (int2)(get_global_id(0) + 1, get_global_id(1));
     // assumes: pos.x > 0 && pos.x < (len.x - 1) && pos.y > 0 && pos.y < (len.y - 1)
     // with len.x = n + 3, len.y = m + 2
 
@@ -47,7 +47,7 @@ __kernel void momentum_eq_f(
     // only execute on fluid-to-fluid cell boundaries
     const uchar b_center = b[INDEX(pos.x - 1, pos.y, b_size_x)];
     if ((b_center & BC_MASK_SELF) != BC_SELF_FLUID || !BC_IS_NEIGHBOR_RIGHT_FLUID(b_center)) {
-        return
+        return;
     }
 
     // load u
@@ -71,10 +71,10 @@ __kernel void momentum_eq_f(
     // dc_udu_x
     const float dc_udu_x_ar = (u_center + u_right) / 2.0;
     const float dc_udu_x_al = (u_left + u_center) / 2.0;
-    const float dc_udu_a = (dc_udu_x_ar * dc_udu_x_ar) - (dc_udu_x_al * dc_udu_x_al);
+    const float dc_udu_x_a = (dc_udu_x_ar * dc_udu_x_ar) - (dc_udu_x_al * dc_udu_x_al);
 
-    const float dc_udu_x_br = (abs(u_center + u_right) / 2.0) * ((u_center - u_right) / 2.0);
-    const float dc_udu_x_bl = (abs(u_left + u_center) / 2.0) * ((u_left - u_center) / 2.0);
+    const float dc_udu_x_br = (fabs(u_center + u_right) / 2.0) * ((u_center - u_right) / 2.0);
+    const float dc_udu_x_bl = (fabs(u_left + u_center) / 2.0) * ((u_left - u_center) / 2.0);
     const float dc_udu_x_b = dc_udu_x_br - dc_udu_x_bl;
 
     const float dc_udu_x = (dc_udu_x_a / h.x) + (alpha / h.x) * dc_udu_x_b;
@@ -85,8 +85,8 @@ __kernel void momentum_eq_f(
     const float dc_vdu_y_al = ((v_down + v_down_right) / 2.0) * ((u_down + u_center) / 2.0);
     const float dc_vdu_y_a = dc_vdu_y_ar - dc_vdu_y_al;
 
-    const float dc_vdu_y_br = (abs(v_center + v_right) / 2.0) * ((u_center - u_top) / 2.0);
-    const float dc_vdu_y_bl = (abs(v_down + v_down_right) / 2.0) * ((u_down - u_center) / 2.0);
+    const float dc_vdu_y_br = (fabs(v_center + v_right) / 2.0) * ((u_center - u_top) / 2.0);
+    const float dc_vdu_y_bl = (fabs(v_down + v_down_right) / 2.0) * ((u_down - u_center) / 2.0);
     const float dc_vdu_y_b = dc_vdu_y_br - dc_vdu_y_bl;
 
     const float dc_vdu_y = (dc_vdu_y_a / h.y) + (alpha / h.y) * dc_vdu_y_b;
@@ -114,7 +114,7 @@ __kernel void momentum_eq_g(
     __read_only float dt,
     __read_only float2 h
 ) {
-    const int2 pos = (int2)(get_global_id(0), get_global_id(1));
+    const int2 pos = (int2)(get_global_id(0), get_global_id(1) + 1);
     // assumes: pos.x > 0 && pos.x < (len.x - 1) && pos.y > 0 && pos.y < (len.y - 1)
     // with len.x = n + 2, len.y = m + 3
 
@@ -151,8 +151,8 @@ __kernel void momentum_eq_g(
     const float dc_vdv_y_ad = (v_down + v_center) / 2.0;
     const float dc_vdv_y_a = (dc_vdv_y_at * dc_vdv_y_at) - (dc_vdv_y_ad * dc_vdv_y_ad);
 
-    const float dc_vdv_y_bt = (abs(v_center + v_top) / 2.0) * ((v_center - v_top) / 2.0);
-    const float dc_vdv_y_bd = (abs(v_down + v_center) / 2.0) * ((v_down - v_center) / 2.0);
+    const float dc_vdv_y_bt = (fabs(v_center + v_top) / 2.0) * ((v_center - v_top) / 2.0);
+    const float dc_vdv_y_bd = (fabs(v_down + v_center) / 2.0) * ((v_down - v_center) / 2.0);
     const float dc_vdv_y_b = dc_vdv_y_bt - dc_vdv_y_bd;
 
     float dc_vdv_y = (dc_vdv_y_a / h.y) + (alpha / h.y) * dc_vdv_y_b;
@@ -163,8 +163,8 @@ __kernel void momentum_eq_g(
     const float dc_udv_x_al = ((v_left + v_center) / 2.0) * ((u_left + u_top_left) / 2.0);
     const float dc_udv_x_a = dc_udv_x_ar - dc_udv_x_al;
 
-    const float dc_udv_x_br = ((v_center - v_right) / 2.0) * (abs(u_center + u_top) / 2.0);
-    const float dc_udv_x_bl = ((v_left - v_center) / 2.0) * (abs(u_left + u_top_left) / 2.0);
+    const float dc_udv_x_br = ((v_center - v_right) / 2.0) * (fabs(u_center + u_top) / 2.0);
+    const float dc_udv_x_bl = ((v_left - v_center) / 2.0) * (fabs(u_left + u_top_left) / 2.0);
     const float dc_udv_x_b = dc_udv_x_br - dc_udv_x_bl;
 
     const float dc_udv_x = (dc_udv_x_a / h.x) + (alpha / h.x) * dc_udv_x_b;

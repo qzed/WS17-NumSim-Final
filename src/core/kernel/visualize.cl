@@ -56,6 +56,21 @@ kernel void visualize_p(
     write_imagef(output, pos, (float4)(val, 0.0, 0.0, 0.0));
 }
 
+kernel void visualize_rhs(
+    __write_only image2d_t output,      // (n + 2) * (m + 2)
+    __read_only __global float* rhs     // n * m
+) {
+    const int2 pos = (int2)(get_global_id(0), get_global_id(1));
+    const int2 size = (int2)(get_global_size(0), get_global_size(1));
+
+    float val = 0.0;
+    if ((pos.x > 0) && (pos.y > 0) && (pos.x < (size.x - 1)) && (pos.y < (size.y - 1))) {
+        val = rhs[INDEX(pos.x - 1, pos.y - 1, size.x - 2)];
+    }
+
+    write_imagef(output, pos, (float4)(val, 0.0, 0.0, 0.0));
+}
+
 
 kernel void visualize_u(
     __write_only image2d_t output,      // (n + 2) * (m + 2)

@@ -2,6 +2,10 @@
 //!
 
 
+#define BC_MASK_SELF                    0b00001111
+#define BC_SELF_FLUID                   0b0000
+
+
 //! Converts a two-dimensional index to a linear index.
 #define INDEX(x, y, size_x) (((y) * (size_x)) + (x))
 
@@ -15,7 +19,7 @@
 //! - rhs: n * m                i.e. has no boundaries and is not staggered
 //! where n * m is the size of the interior.
 //!
-__kernel void rhs(
+__kernel void compute_rhs(
     __read_only __global float* f,
     __read_only __global float* g,
     __write_only __global float* rhs,
@@ -27,13 +31,13 @@ __kernel void rhs(
     // assumes: pos.x >= 0 && pos.x <= (len - 1) && pos.y >= 0 && pos.y <= (len - 1)
     // with len.x = n, len.y = m
 
-    const int b_size_x = get_global_size(0);
-    const int f_size_x = b_size_x + 1;
-    const int g_size_x = b_size_x;
-    const int rhs_size_x = b_size_x - 2;
+    const int rhs_size_x = get_global_size(0);
+    const int b_size_x = rhs_size_x + 2;
+    const int f_size_x = rhs_size_x + 3;
+    const int g_size_x = rhs_size_x + 2;
 
     // only execute on fluid cells
-    const uchar b_center = b[INDEX(pos.x, pos.y - 1, b_size_x)];
+    const uchar b_center = b[INDEX(pos.x + 1, pos.y + 1, b_size_x)];
     if ((b_center & BC_MASK_SELF) != BC_SELF_FLUID) {
         return;
     }
@@ -44,7 +48,7 @@ __kernel void rhs(
 
     // load g
     const float g_center = g[INDEX(pos.x + 1, pos.y + 2, g_size_x)];
-    const float g_down   = g[INDEX(pos.x + 1, pos.y + 1; g_size_x)];
+    const float g_down   = g[INDEX(pos.x + 1, pos.y + 1, g_size_x)];
 
     // f_dx_l, g_dy_l 
     const float f_dx_l = (f_center - f_left) / h.x;
