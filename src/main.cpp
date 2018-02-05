@@ -90,7 +90,7 @@ int main(int argc, char** argv) try {
         .build();
 
     opengl::init();
-    sdl::opengl::set_swap_interval(1);
+    sdl::opengl::set_swap_interval(0);
 
     auto visualizer = vis::Visualizer{};
     visualizer.initialize(INITIAL_SCREEN_SIZE, geom.size());
