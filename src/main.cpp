@@ -15,7 +15,7 @@
 
 #include "vis/visualizer.hpp"
 
-#include "core/kernel/resources.hpp"
+#include "core/kernel/sources/resources.hpp"
 #include "core/parameters.hpp"
 #include "core/geometry.hpp"
 
