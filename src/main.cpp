@@ -716,6 +716,10 @@ int main(int argc, char** argv) try {
 
         window.swap_buffers();
         opengl::check_error();
+
+        if (params.t_end > 0 && t >= params.t_end) {
+            break;
+        }
     }
 
     write_perf_stats(env.json);
