@@ -115,7 +115,7 @@ __kernel void set_boundary_u(
 
     // load boundary type
     const uchar b_cell = b[INDEX(pos.x, pos.y, b_size_x)];
-    const uchar b_self = b_cell & BC_MASK_SELF;
+    uchar b_self = b_cell & BC_MASK_SELF;
 
     // get orientation of boundary
     const int2 u_pos = (int2)(pos.x + 1, pos.y);    // handle additional cells for domain subdivision
@@ -130,6 +130,7 @@ __kernel void set_boundary_u(
     // u on right boundary
     } else if (b_self == BC_SELF_FLUID && !BC_IS_NEIGHBOR_RIGHT_FLUID(b_cell)) {
         u_pos_inner = (int2)(u_pos.x - 1, u_pos.y);
+        b_self = b[INDEX(pos.x + 1, pos.y, b_size_x)] & BC_MASK_SELF;
         on_boundary = true;
 
     // u below bottom boundary
@@ -193,7 +194,7 @@ __kernel void set_boundary_v(
 
     // load boundary type
     const uchar b_cell = b[INDEX(pos.x, pos.y, b_size_x)];
-    const uchar b_self = b_cell & BC_MASK_SELF;
+    uchar b_self = b_cell & BC_MASK_SELF;
 
     // get orientation of boundary
     const int2 v_pos = (int2)(pos.x, pos.y + 1);    // handle additional cells for domain subdivision
@@ -208,6 +209,7 @@ __kernel void set_boundary_v(
     // v on top boundary
     } else if (b_self == BC_SELF_FLUID && !BC_IS_NEIGHBOR_TOP_FLUID(b_cell)) {
         v_pos_inner = (int2)(v_pos.x, v_pos.y - 1);
+        b_self = b[INDEX(pos.x, pos.y + 1, b_size_x)] & BC_MASK_SELF;
         on_boundary = true;
 
     // v left of left boundary
