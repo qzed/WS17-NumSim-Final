@@ -7,21 +7,24 @@ Executor.
 """
 
 
+import argparse
 import os
 import subprocess
 import impl.utils as utils
 
 
+TITLE = 'Performance comparison CPU vs GPU.'
+
 REL_PATH_NUMSIM_EXEC = '../build/main'
 REL_PATH_TMP         = './tmp'
-REL_PATH_DATA        = './data'
+REL_PATH_DATA        = './data'     # can be overwritten through cmdline args
 
 DATAFILE_PREFIX = './lid-driven-cavity'
 GEOM_SUFFIX     = '.geom'
 PARAMS_SUFFIX   = '.params'
 JSON_SUFFIX     = '.json'
 
-GEOM_CAVITY_SIZES = [32, 64, 100, 128, 200, 256, 300, 400, 512]
+GEOM_CAVITY_SIZES = [32, 64, 100, 128, 200, 256, 300]
 
 
 # |---------|
@@ -30,16 +33,15 @@ GEOM_CAVITY_SIZES = [32, 64, 100, 128, 200, 256, 300, 400, 512]
 def abs_path_tmp():
     return os.path.dirname(os.path.abspath(__file__)) + '/' + REL_PATH_TMP
 
+def abs_path():
+    return os.path.dirname(os.path.abspath(__file__))
+
 
 # |------|
 # | data |
 # |------|
-def abs_path_data():
-    return os.path.dirname(os.path.abspath(__file__)) + '/' + REL_PATH_DATA
-
-
-def abs_path_json(cavity_size):
-    return abs_path_data() + '/' + DATAFILE_PREFIX + "_{n}x{n}".format(n=cavity_size) + JSON_SUFFIX
+def json_filename(cavity_size):
+    return DATAFILE_PREFIX + "_{n}x{n}".format(n=cavity_size) + JSON_SUFFIX
 
 
 # |------|
@@ -90,7 +92,7 @@ def create_params():
 # |-----------|
 # | execution |
 # |-----------|
-def exec_sim(cavity_size, stdout):
+def exec_sim(abs_path_data, cavity_size, stdout):
     path_to_script = os.path.dirname(os.path.abspath(__file__))
     path_to_data  = path_to_script + '/' + REL_PATH_TMP
 
@@ -98,14 +100,14 @@ def exec_sim(cavity_size, stdout):
     cmd = '"' + path_to_script + '/' + REL_PATH_NUMSIM_EXEC + '"'
     cmd += " --geom {}".format(abs_path_geom(cavity_size))
     cmd += " --params {}".format(abs_path_params())
-    cmd += " --json {}".format(abs_path_json(cavity_size))
+    cmd += " --json {}".format(abs_path_data + '/' + json_filename(cavity_size))
 
     # execute
     with open(stdout, 'w') as logfile:
         subprocess.check_call(cmd, shell=True, stdout=logfile)
 
 
-def execute():
+def execute(abs_path_data):
     print(">> creating parameters for lid-driven cavity")
     create_params()
     print()
@@ -118,7 +120,7 @@ def execute():
         print("   lid-driven cavity ({n}x{n})".format(n=n))
         create_geom(n)
         print(">> executing")
-        exec_sim(n, stdout)
+        exec_sim(abs_path_data, n, stdout)
         print(">> removing geometry")
         print("   lid-driven cavity ({n}x{n})".format(n=n))
         os.remove(abs_path_geom(n))
@@ -131,14 +133,20 @@ def execute():
 
 
 def main():
+    parser = argparse.ArgumentParser(description=TITLE)
+    parser.add_argument('-j', '--json', metavar='json', nargs='?', type=str, default=REL_PATH_DATA,
+                        help="JSON output path relative to this py-script's location")
+    args = parser.parse_args()
+    abs_path_data = abs_path() + '/' + args.json
+
     print(">> creating directory 'tmp'")
     print()
     utils.mkdir(abs_path_tmp())
 
-    print(">> creating directory 'data'")
+    print(">> creating directory '{}'".format(args.json))
     print()
-    utils.mkdir(abs_path_data())
-    execute()
+    utils.mkdir(abs_path_data)
+    execute(abs_path_data)
     print()
     print(">> removing directory 'tmp'")
     os.rmdir(abs_path_tmp())
