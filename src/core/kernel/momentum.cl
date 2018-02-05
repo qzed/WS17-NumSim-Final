@@ -155,7 +155,7 @@ __kernel void momentum_eq_g(
     const float dc_vdv_y_bd = (fabs(v_down + v_center) / 2.0) * ((v_down - v_center) / 2.0);
     const float dc_vdv_y_b = dc_vdv_y_bt - dc_vdv_y_bd;
 
-    float dc_vdv_y = (dc_vdv_y_a / h.y) + (alpha / h.y) * dc_vdv_y_b;
+    const float dc_vdv_y = (dc_vdv_y_a / h.y) + (alpha / h.y) * dc_vdv_y_b;
     acc -= dc_vdv_y;
 
     // dc_udv_x

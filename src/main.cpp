@@ -56,9 +56,6 @@ int main(int argc, char** argv) try {
     auto params = core::Parameters{};
     auto geom = core::Geometry::lid_driven_cavity({128, 128});
 
-    params.load("/mnt/lnx/Uni/17WS/Numerische Simulation/Code/data/channel.param");
-    geom.load("/mnt/lnx/Uni/17WS/Numerische Simulation/Code/data/channel.geom");
-
     auto n_fluid_cells = geom.num_fluid_cells();
 
     auto window = sdl::opengl::Window::builder(WINDOW_TITLE, INITIAL_SCREEN_SIZE)
@@ -348,7 +345,7 @@ int main(int argc, char** argv) try {
                     visualizer.set_sampler(vis::SamplerType::Linear);
                 } else if (e.key.keysym.sym == SDLK_n) {
                     visualizer.set_sampler(vis::SamplerType::Nearest);
-                } else if (e.key.keysym.sym == SDLK_q) {
+                } else if (e.key.keysym.sym == SDLK_ESCAPE) {
                     running = false;
 
                 } else if (e.key.keysym.sym == SDLK_1) {
@@ -451,7 +448,7 @@ int main(int argc, char** argv) try {
             cl_queue.enqueueNDRangeKernel(kernel_momentum_f, cl::NullRange, range, cl::NullRange);
         }
 
-        {   // calculate preliminary velocities: f
+        {   // calculate preliminary velocities: g
             cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
 
             cl::Kernel kernel_momentum_g{cl_momentum_program, "momentum_eq_g"};
@@ -468,19 +465,24 @@ int main(int argc, char** argv) try {
             cl_queue.enqueueNDRangeKernel(kernel_momentum_g, cl::NullRange, range, cl::NullRange);
         }
 
-        {   // calculate rhs
-            cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
+        {   // set f boundary
+            cl::Kernel kernel_boundary_u{cl_boundaries_program, "set_boundary_u"};
+            kernel_boundary_u.setArg(0, buf_f);
+            kernel_boundary_u.setArg(1, buf_boundary);
+            kernel_boundary_u.setArg(2, static_cast<cl_float>(geom.boundary_velocity().x));
 
-            cl::Kernel kernel_rhs{cl_rhs_program, "compute_rhs"};
-            kernel_rhs.setArg(0, buf_f);
-            kernel_rhs.setArg(1, buf_g);
-            kernel_rhs.setArg(2, buf_rhs);
-            kernel_rhs.setArg(3, buf_boundary);
-            kernel_rhs.setArg(4, static_cast<cl_float>(dt));
-            kernel_rhs.setArg(5, h);
+            auto range = cl::NDRange(geom.size().x, geom.size().y);
+            cl_queue.enqueueNDRangeKernel(kernel_boundary_u, cl::NullRange, range, cl::NullRange);
+        }
 
-            auto range = cl::NDRange(geom.size().x - 2, geom.size().y - 2);
-            cl_queue.enqueueNDRangeKernel(kernel_rhs, cl::NullRange, range, cl::NullRange);
+        {   // set g boundary
+            cl::Kernel kernel_boundary_v{cl_boundaries_program, "set_boundary_v"};
+            kernel_boundary_v.setArg(0, buf_g);
+            kernel_boundary_v.setArg(1, buf_boundary);
+            kernel_boundary_v.setArg(2, static_cast<cl_float>(geom.boundary_velocity().y));
+
+            auto range = cl::NDRange(geom.size().x, geom.size().y);
+            cl_queue.enqueueNDRangeKernel(kernel_boundary_v, cl::NullRange, range, cl::NullRange);
         }
 
         {   // calculate rhs
