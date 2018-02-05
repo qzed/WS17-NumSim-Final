@@ -92,9 +92,10 @@ def create_params():
 # |-----------|
 # | execution |
 # |-----------|
-def exec_sim(abs_path_data, cavity_size, stdout):
+def exec_sim(abs_path_data, cavity_size):
     path_to_script = os.path.dirname(os.path.abspath(__file__))
     path_to_data  = path_to_script + '/' + REL_PATH_TMP
+    stdout = path_to_script + '/' + REL_PATH_TMP + "/.tmp.{}.stdout".format(cavity_size)
 
     # setup execution command
     cmd = '"' + path_to_script + '/' + REL_PATH_NUMSIM_EXEC + '"'
@@ -106,6 +107,8 @@ def exec_sim(abs_path_data, cavity_size, stdout):
     with open(stdout, 'w') as logfile:
         subprocess.check_call(cmd, shell=True, stdout=logfile)
 
+    os.remove(stdout)
+
 
 def execute(abs_path_data):
     print(">> creating parameters for lid-driven cavity")
@@ -114,19 +117,16 @@ def execute(abs_path_data):
 
     # create geometry, execute and remove geometry for every cavity size
     for n in GEOM_CAVITY_SIZES:
-        stdout = REL_PATH_TMP + "/.tmp.{}.stdout".format(n)
 
         print(">> creating geometry")
         print("   lid-driven cavity ({n}x{n})".format(n=n))
         create_geom(n)
         print(">> executing")
-        exec_sim(abs_path_data, n, stdout)
+        exec_sim(abs_path_data, n)
         print(">> removing geometry")
         print("   lid-driven cavity ({n}x{n})".format(n=n))
         os.remove(abs_path_geom(n))
         print()
-
-        os.remove(stdout)
 
     print(">> removing parameters for lid-driven cavity")
     os.remove(abs_path_params())
