@@ -162,3 +162,25 @@ kernel void visualize_uv_abs_center(
 
     output[INDEX(pos.x, pos.y, size_x)] = val;
 }
+
+kernel void visualize_vorticity(
+    __global float* output,             // (n + 2) * (m + 2)
+    __global const float* u,            // (n + 3) * (m + 2)
+    __global const float* v,            // (n + 2) * (m + 3)
+    const float2 h
+) {
+    const int2 pos = (int2)(get_global_id(0), get_global_id(1));
+    const int size_x = get_global_size(0);
+    const int v_size_x = size_x;
+    const int u_size_x = size_x + 1;
+
+    const float u_cell = u[INDEX(pos.x + 1, pos.y, u_size_x)];
+    const float u_top  = u[INDEX(pos.x + 1, pos.y + 1, u_size_x)];
+
+    const float v_cell  = v[INDEX(pos.x, pos.y + 1, v_size_x)];
+    const float v_right = v[INDEX(pos.x + 1, pos.y + 1, v_size_x)];
+
+    const float val = ((u_top - u_cell) / h.y) - ((v_right - v_cell) / h.x);
+
+    output[INDEX(pos.x, pos.y, size_x)] = val;
+}

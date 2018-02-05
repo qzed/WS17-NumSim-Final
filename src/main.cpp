@@ -49,6 +49,7 @@ enum class VisualTarget {
     F,
     G,
     Rhs,
+    Vorticity,
 };
 
 
@@ -364,6 +365,8 @@ int main(int argc, char** argv) try {
                     visual = VisualTarget::Rhs;
                 } else if (e.key.keysym.sym == SDLK_8) {
                     visual = VisualTarget::BoundaryTypes;
+                } else if (e.key.keysym.sym == SDLK_9) {
+                    visual = VisualTarget::Vorticity;
                 }
             }
         }
@@ -629,6 +632,15 @@ int main(int argc, char** argv) try {
                 kernel = {cl_visualize_program, "visualize_rhs"};
                 kernel.setArg(0, buf_vis);
                 kernel.setArg(1, buf_rhs);
+
+            } else if (visual == VisualTarget::Vorticity) {
+                cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
+
+                kernel = {cl_visualize_program, "visualize_vorticity"};
+                kernel.setArg(0, buf_vis);
+                kernel.setArg(1, buf_u);
+                kernel.setArg(2, buf_v);
+                kernel.setArg(3, h);
             }
 
             auto range = cl::NDRange(geom.size().x, geom.size().y);
