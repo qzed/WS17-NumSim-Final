@@ -22,6 +22,7 @@
 #include "utils/pad.hpp"
 
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <algorithm>
 #include <numeric>
@@ -53,10 +54,23 @@ enum class VisualTarget {
     Stream,
 };
 
+struct Environment {
+    char const* params;
+    char const* geom;
+};
+
+
+auto parse_cmdline(int argc, char** argv) -> Environment;
+
 
 int main(int argc, char** argv) try {
+    // parse arguments
+    Environment env = parse_cmdline(argc, argv);
+
     auto params = core::Parameters{};
+    if (env.params) params.load(env.params);
     auto geom = core::Geometry::lid_driven_cavity({128, 128});
+    if (env.geom) geom.load(env.geom);
 
     auto n_fluid_cells = geom.num_fluid_cells();
 
@@ -140,63 +154,63 @@ int main(int argc, char** argv) try {
 
     auto cl_context = cl::Context(device, properties.data());
 
-    // progam: zero
+    // program: zero
     cl::Program::Sources cl_zero_sources;
     cl_zero_sources.push_back(core::kernel::resources::zero_cl.to_string());
 
     cl::Program cl_zero_program{cl_context, cl_zero_sources};
     cl_zero_program.build({device}, OCL_COMPILER_OPTIONS);
 
-    // progam: visualize
+    // program: visualize
     cl::Program::Sources cl_visualize_sources;
     cl_visualize_sources.push_back(core::kernel::resources::visualize_cl.to_string());
 
     cl::Program cl_visualize_program{cl_context, cl_visualize_sources};
     cl_visualize_program.build({device}, OCL_COMPILER_OPTIONS);
 
-    // progam: boundaries
+    // program: boundaries
     cl::Program::Sources cl_boundaries_sources;
     cl_boundaries_sources.push_back(core::kernel::resources::boundaries_cl.to_string());
 
     cl::Program cl_boundaries_program{cl_context, cl_boundaries_sources};
     cl_boundaries_program.build({device}, OCL_COMPILER_OPTIONS);
 
-    // progam: momentum (preliminary velocities)
+    // program: momentum (preliminary velocities)
     cl::Program::Sources cl_momentum_sources;
     cl_momentum_sources.push_back(core::kernel::resources::momentum_cl.to_string());
 
     cl::Program cl_momentum_program{cl_context, cl_momentum_sources};
     cl_momentum_program.build({device}, OCL_COMPILER_OPTIONS);
 
-    // progam: rhs (right-hand-side of pressure equation)
+    // program: rhs (right-hand-side of pressure equation)
     cl::Program::Sources cl_rhs_sources;
     cl_rhs_sources.push_back(core::kernel::resources::rhs_cl.to_string());
 
     cl::Program cl_rhs_program{cl_context, cl_rhs_sources};
     cl_rhs_program.build({device}, OCL_COMPILER_OPTIONS);
 
-    // progam: solver
+    // program: solver
     cl::Program::Sources cl_solver_sources;
     cl_solver_sources.push_back(core::kernel::resources::solver_cl.to_string());
 
     cl::Program cl_solver_program{cl_context, cl_solver_sources};
     cl_solver_program.build({device}, OCL_COMPILER_OPTIONS);
 
-    // progam: velocities (calculate updated velocities)
+    // program: velocities (calculate updated velocities)
     cl::Program::Sources cl_velocities_sources;
     cl_velocities_sources.push_back(core::kernel::resources::velocities_cl.to_string());
 
     cl::Program cl_velocities_program{cl_context, cl_velocities_sources};
     cl_velocities_program.build({device}, OCL_COMPILER_OPTIONS);
 
-    // progam: reduce (calculate updated reduce)
+    // program: reduce (calculate updated reduce)
     cl::Program::Sources cl_reduce_sources;
     cl_reduce_sources.push_back(core::kernel::resources::reduce_cl.to_string());
 
     cl::Program cl_reduce_program{cl_context, cl_reduce_sources};
     cl_reduce_program.build({device}, OCL_COMPILER_OPTIONS);
 
-    // progam: copy (calculate updated copy)
+    // program: copy (calculate updated copy)
     cl::Program::Sources cl_copy_sources;
     cl_copy_sources.push_back(core::kernel::resources::copy_cl.to_string());
 
@@ -730,4 +744,62 @@ int main(int argc, char** argv) try {
     std::cerr << err.log();
     std::cerr << "--------------------------------------------------------------------------------\n";
     throw err;
+}
+
+
+auto parse_cmdline(int argc, char** argv) -> Environment {
+    auto print_usage_and_exit = [&](int status, std::string msg = "") {
+        if (!msg.empty()) std::cout << msg << "\n\n";
+        std::cout <<
+            "Usage:\n"
+            "  " << argv[0] << " [options]\n"
+            "\n"
+            "Options:\n"
+            "  -h --help                 Show this help message\n"
+            "  -g --geometry <file>      Load geometry file (*.geom)\n"
+            "  -p --parameters <file>    Load simulation parameters (*.param)\n";
+        std::cout << std::endl;
+        std::exit(status);
+    };
+
+    Environment env{nullptr, nullptr};
+    for (int i = 1; i < argc; i++) {
+        char* arg = argv[i];
+
+        if (  std::strcmp("-h", arg) == 0
+           || std::strcmp("--help", arg) == 0
+        ) {
+            print_usage_and_exit(0, WINDOW_TITLE);
+        }
+
+        else if (  std::strcmp("-p", arg) == 0
+                || std::strcmp("--params", arg) == 0
+                || std::strcmp("--parameters", arg) == 0
+        ) {
+            if (i++ < argc) {
+                env.params = argv[i];
+            } else {
+                print_usage_and_exit(1, "Error: Missing argument for '--parameters'.");
+            }
+        }
+
+        else if (  std::strcmp("-g", arg) == 0
+                || std::strcmp("--geom", arg) == 0
+                || std::strcmp("--geometry", arg) == 0
+        ) {
+            if (++i < argc) {
+                env.geom = argv[i];
+            } else {
+                print_usage_and_exit(1, "Error: Missing argument for '--geometry'.");
+            }
+        }
+
+        else {
+            std::stringstream msg;
+            msg << "Error: Unknown argument '" << arg << "'.";
+            print_usage_and_exit(1, msg.str());
+        }
+    }
+
+    return env;
 }
