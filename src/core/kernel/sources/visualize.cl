@@ -184,3 +184,34 @@ kernel void visualize_vorticity(
 
     output[INDEX(pos.x, pos.y, size_x)] = val;
 }
+
+kernel void visualize_stream(
+    __global float* output,             // (n + 2) * (m + 2)
+    __global const float* u,            // (n + 3) * (m + 2)
+    __global const float* v,            // (n + 2) * (m + 3)
+    const float2 h
+) {
+    // TODO: this is a _very_ naive implementation, find a way to improve it
+
+    const int2 pos = (int2)(get_global_id(0), get_global_id(1));
+    const int size_x = get_global_size(0);
+    const int v_size_x = size_x;
+    const int u_size_x = size_x + 1;
+
+    float acc = 0.0;
+
+    // bottom boundary
+    for (int x = 1; x <= pos.x; x++) {
+        const float v_cell = v[INDEX(pos.x, 1, v_size_x)];
+        acc = acc + v_cell * h.y;
+    }
+
+    // upwards on x-position
+    for (int y = 1; y <= pos.y; y++) {
+        const float u_cell = u[INDEX(pos.x + 1, y, u_size_x)];
+        acc = acc - u_cell * h.y;
+    }
+
+    // store result
+    output[INDEX(pos.x, pos.y, size_x)] = acc;
+}

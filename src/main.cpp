@@ -50,6 +50,7 @@ enum class VisualTarget {
     G,
     Rhs,
     Vorticity,
+    Stream,
 };
 
 
@@ -367,6 +368,8 @@ int main(int argc, char** argv) try {
                     visual = VisualTarget::BoundaryTypes;
                 } else if (e.key.keysym.sym == SDLK_9) {
                     visual = VisualTarget::Vorticity;
+                } else if (e.key.keysym.sym == SDLK_0) {
+                    visual = VisualTarget::Stream;
                 }
             }
         }
@@ -637,6 +640,15 @@ int main(int argc, char** argv) try {
                 cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
 
                 kernel = {cl_visualize_program, "visualize_vorticity"};
+                kernel.setArg(0, buf_vis);
+                kernel.setArg(1, buf_u);
+                kernel.setArg(2, buf_v);
+                kernel.setArg(3, h);
+
+            } else if (visual == VisualTarget::Stream) {
+                cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
+
+                kernel = {cl_visualize_program, "visualize_stream"};
                 kernel.setArg(0, buf_vis);
                 kernel.setArg(1, buf_u);
                 kernel.setArg(2, buf_v);
