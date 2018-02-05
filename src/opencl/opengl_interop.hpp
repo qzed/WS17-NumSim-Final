@@ -33,7 +33,7 @@ struct ContextPropertyKv {
 char const* const EXT_CL_GL_SHARING = "cl_APPLE_gl_sharing";
 
 
-inline auto get_context_share_properties(sdl::opengl::Window const& window)
+inline auto get_context_share_properties(sdl::opengl::Window const&)
     -> std::array<ContextPropertyKv, 1>
 {
     CGLContextObj ctx = CGLGetCurrentContext();
