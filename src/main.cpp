@@ -223,7 +223,7 @@ int main(int argc, char** argv) try {
     cl_copy_program.build({device}, OCL_COMPILER_OPTIONS);
 
 
-    cl::CommandQueue cl_queue{cl_context, device};
+    cl::CommandQueue cl_queue{cl_context, device, CL_QUEUE_PROFILING_ENABLE};
 
     // set boundary buffer
     auto buf_boundary = cl::Buffer{cl_context, CL_MEM_READ_ONLY, geom.data().size() * sizeof(cl_uchar)};
@@ -327,6 +327,36 @@ int main(int argc, char** argv) try {
         cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
     }
 
+    {   // set u boundary
+        cl::Kernel kernel_boundary_u{cl_boundaries_program, "set_boundary_u"};
+        kernel_boundary_u.setArg(0, buf_u);
+        kernel_boundary_u.setArg(1, buf_boundary);
+        kernel_boundary_u.setArg(2, static_cast<cl_float>(geom.boundary_velocity().x));
+
+        auto range = cl::NDRange(geom.size().x, geom.size().y);
+        cl_queue.enqueueNDRangeKernel(kernel_boundary_u, cl::NullRange, range, cl::NullRange);
+    }
+
+    {   // set v boundary
+        cl::Kernel kernel_boundary_v{cl_boundaries_program, "set_boundary_v"};
+        kernel_boundary_v.setArg(0, buf_v);
+        kernel_boundary_v.setArg(1, buf_boundary);
+        kernel_boundary_v.setArg(2, static_cast<cl_float>(geom.boundary_velocity().y));
+
+        auto range = cl::NDRange(geom.size().x, geom.size().y);
+        cl_queue.enqueueNDRangeKernel(kernel_boundary_v, cl::NullRange, range, cl::NullRange);
+    }
+
+    {   // set pressure boundary
+        cl::Kernel kernel_boundary_p{cl_boundaries_program, "set_boundary_p"};
+        kernel_boundary_p.setArg(0, buf_p);
+        kernel_boundary_p.setArg(1, buf_boundary);
+        kernel_boundary_p.setArg(2, static_cast<cl_float>(geom.boundary_pressure()));
+
+        auto range = cl::NDRange(geom.size().x, geom.size().y);
+        cl_queue.enqueueNDRangeKernel(kernel_boundary_p, cl::NullRange, range, cl::NullRange);
+     }
+
 
     glClearColor(0.0, 0.0, 0.0, 1.0);
 
@@ -395,36 +425,6 @@ int main(int argc, char** argv) try {
 
         for (int i = 0; i < 100; i++) {
         // if (cont) { cont = false;
-        {   // set u boundary
-            cl::Kernel kernel_boundary_u{cl_boundaries_program, "set_boundary_u"};
-            kernel_boundary_u.setArg(0, buf_u);
-            kernel_boundary_u.setArg(1, buf_boundary);
-            kernel_boundary_u.setArg(2, static_cast<cl_float>(geom.boundary_velocity().x));
-
-            auto range = cl::NDRange(geom.size().x, geom.size().y);
-            cl_queue.enqueueNDRangeKernel(kernel_boundary_u, cl::NullRange, range, cl::NullRange);
-        }
-
-        {   // set v boundary
-            cl::Kernel kernel_boundary_v{cl_boundaries_program, "set_boundary_v"};
-            kernel_boundary_v.setArg(0, buf_v);
-            kernel_boundary_v.setArg(1, buf_boundary);
-            kernel_boundary_v.setArg(2, static_cast<cl_float>(geom.boundary_velocity().y));
-
-            auto range = cl::NDRange(geom.size().x, geom.size().y);
-            cl_queue.enqueueNDRangeKernel(kernel_boundary_v, cl::NullRange, range, cl::NullRange);
-        }
-
-        {   // set pressure boundary    // TODO: only required initially
-            cl::Kernel kernel_boundary_p{cl_boundaries_program, "set_boundary_p"};
-            kernel_boundary_p.setArg(0, buf_p);
-            kernel_boundary_p.setArg(1, buf_boundary);
-            kernel_boundary_p.setArg(2, static_cast<cl_float>(geom.boundary_pressure()));
-
-            auto range = cl::NDRange(geom.size().x, geom.size().y);
-            cl_queue.enqueueNDRangeKernel(kernel_boundary_p, cl::NullRange, range, cl::NullRange);
-        }
-
         {   // calculate new dt
 
             // calculate maximum absolutes for u and v
@@ -604,6 +604,26 @@ int main(int argc, char** argv) try {
 
             auto range = cl::NDRange(geom.size().x, geom.size().y);
             cl_queue.enqueueNDRangeKernel(kernel, cl::NullRange, range, cl::NullRange);
+        }
+
+        {   // set u boundary
+            cl::Kernel kernel_boundary_u{cl_boundaries_program, "set_boundary_u"};
+            kernel_boundary_u.setArg(0, buf_u);
+            kernel_boundary_u.setArg(1, buf_boundary);
+            kernel_boundary_u.setArg(2, static_cast<cl_float>(geom.boundary_velocity().x));
+
+            auto range = cl::NDRange(geom.size().x, geom.size().y);
+            cl_queue.enqueueNDRangeKernel(kernel_boundary_u, cl::NullRange, range, cl::NullRange);
+        }
+
+        {   // set v boundary
+            cl::Kernel kernel_boundary_v{cl_boundaries_program, "set_boundary_v"};
+            kernel_boundary_v.setArg(0, buf_v);
+            kernel_boundary_v.setArg(1, buf_boundary);
+            kernel_boundary_v.setArg(2, static_cast<cl_float>(geom.boundary_velocity().y));
+
+            auto range = cl::NDRange(geom.size().x, geom.size().y);
+            cl_queue.enqueueNDRangeKernel(kernel_boundary_v, cl::NullRange, range, cl::NullRange);
         }
 
         t += dt;
