@@ -2,3 +2,4 @@ build
 .vscode
 validation/data
 validation/tmp
+__pycache__
