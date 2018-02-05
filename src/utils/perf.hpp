@@ -1,10 +1,11 @@
 #pragma once
 
+#include "opencl/opencl.hpp"
+#include "json/json.hpp"
+
 #include <chrono>
 #include <string>
 #include <unordered_map>
-
-#include "json/json.hpp"
 
 
 // Note: this implementation is janky af. as it relies on the key (function name)
@@ -76,6 +77,27 @@ private:
 };
 
 
+template <typename D>
+inline auto add_cl_event_record(char const* name, D&& duration) {
+    auto d_nanos = std::chrono::nanoseconds{std::forward<D>(duration)};
+    auto d_mills = std::chrono::duration_cast<Registry::duration_type>(d_nanos);
+
+    auto r = Registry::get().store().insert({name, {1ull, d_mills}});
+    if (!r.second) {
+        r.first->second.duration += d_mills;
+        r.first->second.executions += 1;
+    }
+}
+
+template <>
+inline auto add_cl_event_record(char const* name, cl::Event& event) {
+    event.wait();
+    auto start = event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+    auto end = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+    add_cl_event_record(name, end - start);
+}
+
+
 auto Registry::get() -> Registry& {
     static Registry registry;
     return registry;
@@ -126,7 +148,7 @@ void Record::stop() {
     Registry::duration_type d = clock::now() - m_start;
 
     // store duration
-    auto r = Registry::get().store().insert({m_name, {0ull, d}});
+    auto r = Registry::get().store().insert({m_name, {1ull, d}});
     if (!r.second) {
         r.first->second.duration += d;
         r.first->second.executions += 1;
