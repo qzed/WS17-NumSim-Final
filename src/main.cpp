@@ -1,8 +1,5 @@
 #include "types.hpp"
 
-#include "json/json.hpp"
-#include "utils/perf.hpp"
-
 #include "opengl/opengl.hpp"
 #include "opengl/init.hpp"
 #include "opengl/shader.hpp"
@@ -23,6 +20,9 @@
 #include "core/geometry.hpp"
 
 #include "utils/pad.hpp"
+#include "utils/perf.hpp"
+
+#include "json/json.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -69,6 +69,8 @@ void write_perf_stats(char const* json);
 
 
 int main(int argc, char** argv) try {
+    auto perf_tts_full = utils::perf::Record::start("tts::full");
+
     // parse arguments
     Environment env = parse_cmdline(argc, argv);
 
@@ -355,7 +357,7 @@ int main(int argc, char** argv) try {
 
         auto range = cl::NDRange(geom.size().x, geom.size().y);
         cl_queue.enqueueNDRangeKernel(kernel_boundary_p, cl::NullRange, range, cl::NullRange);
-     }
+    }
 
 
     glClearColor(0.0, 0.0, 0.0, 1.0);
@@ -369,6 +371,8 @@ int main(int argc, char** argv) try {
     real_t dt = params.dt;
 
     VisualTarget visual = VisualTarget::UVAbsCentered;
+
+    auto perf_tts_noinit = utils::perf::Record::start("tts::noinit");
 
     bool running = true;
     bool cont = false;
@@ -569,8 +573,11 @@ int main(int argc, char** argv) try {
             cl_float residual = std::numeric_limits<cl_float>::infinity();
             int_t iter = 0;
             for (; iter < params.itermax && residual > params.eps; iter++) {
+                cl::Event perf_evt_start;
+                cl::Event perf_evt_end;
+
                 // solver cycles
-                cl_queue.enqueueNDRangeKernel(kernel_red, cl::NullRange, range_red, cl::NullRange);
+                cl_queue.enqueueNDRangeKernel(kernel_red, cl::NullRange, range_red, cl::NullRange, nullptr, &perf_evt_start);
                 cl_queue.enqueueNDRangeKernel(kernel_black, cl::NullRange, range_black, cl::NullRange);
 
                 // update boundaries
@@ -581,10 +588,22 @@ int main(int argc, char** argv) try {
 
                     // reduce residual
                     cl_queue.enqueueNDRangeKernel(kernel_reduce, cl::NullRange, cl::NDRange(reduce_global_size_res), cl::NDRange(reduce_local_size));
-                    cl::copy(cl_queue, buf_reduce_out_res, vec_reduce_out_res.begin(), vec_reduce_out_res.end());
+                    cl_queue.enqueueReadBuffer(buf_reduce_out_res, true, 0, sizeof(cl_float) * vec_reduce_out_res.size(), vec_reduce_out_res.data(), nullptr, &perf_evt_end);
 
+                    auto reduce_cpu_start = std::chrono::high_resolution_clock::now();
                     residual = std::accumulate(vec_reduce_out_res.begin(), vec_reduce_out_res.end(), static_cast<cl_float>(0.0));
                     residual = residual / n_fluid_cells;
+                    auto reduce_cpu_end = std::chrono::high_resolution_clock::now();
+
+                    auto solve_gpu_start = perf_evt_start.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+                    auto solve_gpu_end = perf_evt_end.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+                    auto dt_solve_gpu_nano = std::chrono::nanoseconds{solve_gpu_end - solve_gpu_start};
+
+                    auto dt_solve_gpu = std::chrono::duration_cast<utils::perf::Registry::duration_type>(dt_solve_gpu_nano);
+                    auto dt_reduce_cpu = std::chrono::duration_cast<utils::perf::Registry::duration_type>(reduce_cpu_start - reduce_cpu_end);
+
+                    auto dt_all = dt_solve_gpu + dt_reduce_cpu;
+                    utils::perf::add_cl_event_record("solver::iteration::full", dt_all);
                 }
             }
         }
@@ -742,6 +761,8 @@ int main(int argc, char** argv) try {
         }
     }
 
+    perf_tts_noinit.stop();
+    perf_tts_full.stop();
     write_perf_stats(env.json);
 
 

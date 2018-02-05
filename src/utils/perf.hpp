@@ -89,6 +89,17 @@ inline auto add_cl_event_record(char const* name, D&& duration) {
     }
 }
 
+template <typename Rep, typename Period>
+inline auto add_cl_event_record(char const* name, std::chrono::duration<Rep, Period> duration) {
+    auto d_mills = std::chrono::duration_cast<Registry::duration_type>(duration);
+
+    auto r = Registry::get().store().insert({name, {1ull, d_mills}});
+    if (!r.second) {
+        r.first->second.duration += d_mills;
+        r.first->second.executions += 1;
+    }
+}
+
 template <>
 inline auto add_cl_event_record(char const* name, cl::Event& event) {
     event.wait();
