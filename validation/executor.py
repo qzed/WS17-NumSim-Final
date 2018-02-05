@@ -24,7 +24,7 @@ GEOM_SUFFIX     = '.geom'
 PARAMS_SUFFIX   = '.params'
 JSON_SUFFIX     = '.json'
 
-GEOM_CAVITY_SIZES = [32, 64, 100, 128, 200, 256, 300, 400, 512]
+GEOM_CAVITY_SIZES = [32, 64, 100, 128, 200, 256, 300]
 
 
 # |---------|
