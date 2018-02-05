@@ -1,5 +1,8 @@
 #include "types.hpp"
 
+#include "json/json.hpp"
+#include "utils/perf.hpp"
+
 #include "opengl/opengl.hpp"
 #include "opengl/init.hpp"
 #include "opengl/shader.hpp"
@@ -57,10 +60,12 @@ enum class VisualTarget {
 struct Environment {
     char const* params;
     char const* geom;
+    char const* json;
 };
 
 
 auto parse_cmdline(int argc, char** argv) -> Environment;
+void write_perf_stats(char const* json);
 
 
 int main(int argc, char** argv) try {
@@ -713,6 +718,8 @@ int main(int argc, char** argv) try {
         opengl::check_error();
     }
 
+    write_perf_stats(env.json);
+
 
 } catch (cl::BuildError const& err) {
     auto const& log = err.getBuildLog();
@@ -757,12 +764,14 @@ auto parse_cmdline(int argc, char** argv) -> Environment {
             "Options:\n"
             "  -h --help                 Show this help message\n"
             "  -g --geometry <file>      Load geometry file (*.geom)\n"
-            "  -p --parameters <file>    Load simulation parameters (*.param)\n";
+            "  -p --parameters <file>    Load simulation parameters (*.param)\n"
+            "  -j --json <file>          JSON output file (*.json)\n"
+            "                            If not set, no file is created.\n";
         std::cout << std::endl;
         std::exit(status);
     };
 
-    Environment env{nullptr, nullptr};
+    Environment env{nullptr, nullptr, nullptr};
     for (int i = 1; i < argc; i++) {
         char* arg = argv[i];
 
@@ -794,6 +803,16 @@ auto parse_cmdline(int argc, char** argv) -> Environment {
             }
         }
 
+        else if (  std::strcmp("-j", arg) == 0
+                || std::strcmp("--json", arg) == 0
+        ) {
+            if (++i < argc) {
+                env.json = argv[i];
+            } else {
+                print_usage_and_exit(1, "Error: Missing argument for '--json'.");
+            }
+        }
+
         else {
             std::stringstream msg;
             msg << "Error: Unknown argument '" << arg << "'.";
@@ -802,4 +821,13 @@ auto parse_cmdline(int argc, char** argv) -> Environment {
     }
 
     return env;
+}
+
+void write_perf_stats(char const* json_file) {
+    if (json_file) {
+        nlohmann::json data = utils::perf::Registry::get();
+
+        std::ofstream o(json_file);
+        o << std::setw(4) << data << std::endl;
+    }
 }
