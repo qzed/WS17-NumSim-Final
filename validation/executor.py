@@ -3,7 +3,7 @@
 """
 Performance comparison CPU vs GPU.
 
-GPU executor.
+Executor.
 """
 
 
