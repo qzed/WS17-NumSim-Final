@@ -90,7 +90,11 @@ The syntax of parameter and geometry-files is also left unchanged from the previ
 
 ## Validation
 
-For the purpose of validation, we used the parameter setting from exercise sheet 1 and the lid-driven-cavity geometry.
-If executed in its directory, the python-script `./validation/executor.py` executes the simulation at `../build/main` for several grid sizes.
+For performance-measurements, we used the parameter setting from exercise sheet 1 and the lid-driven-cavity geometry.
+
+To compare performance with the CPU-implementation, we compare runs over different grid-sizes.
+If executed in its directory, the python-script `./validation/executor.py` executes the simulation at `../build/main` for multiple grid sizes.
 The used grid sizes are 32, 64, 100, 128, 200, 256, 300 in each dimension.
-Per default, `*.json` files are generated and stored in `./data` (relative to the python script).
+Per default, `*.json` files containing the performance-data are generated and stored in `./data` (relative to the python script).
+
+To compare the error of a pressure-channel-flow to its analytical solution, the command-line-option `--cross-seciton <file>` can be used to obtain u- and v-velocities at a vertical cross-section in the center of the channel.
