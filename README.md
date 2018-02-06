@@ -97,4 +97,4 @@ If executed in its directory, the python-script `./validation/executor.py` execu
 The used grid sizes are 32, 64, 100, 128, 200, 256, 300 in each dimension.
 Per default, `*.json` files containing the performance-data are generated and stored in `./data` (relative to the python script).
 
-To compare the error of a pressure-channel-flow to its analytical solution, the command-line-option `--cross-seciton <file>` can be used to obtain u- and v-velocities at a vertical cross-section in the center of the channel.
+To compare the error of a pressure-channel-flow to its analytical solution, the command-line-option `--cross-section <file>` can be used to obtain u- and v-velocities at a vertical cross-section in the center of the channel.
