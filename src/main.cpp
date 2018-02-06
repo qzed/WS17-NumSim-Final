@@ -61,6 +61,7 @@ struct Environment {
     char const* params;
     char const* geom;
     char const* json;
+    char const* cross_section;
 };
 
 
@@ -775,10 +776,36 @@ int main(int argc, char** argv) try {
             break;
         }
     }
+    cl_queue.finish();
 
     perf_tts_noinit.stop();
     perf_tts_full.stop();
     write_perf_stats(env.json);
+
+    // write u/v cross-section
+    if (env.cross_section) {
+        std::vector<cl_float> vec_u((geom.size().x + 1) * geom.size().y);
+        std::vector<cl_float> vec_v(geom.size().x * (geom.size().y + 1));
+
+        cl::copy(cl_queue, buf_u, vec_u.begin(), vec_u.end());
+        cl::copy(cl_queue, buf_v, vec_v.begin(), vec_v.end());
+
+        std::ofstream out{env.cross_section};
+        out << "u,v\n";
+
+        int_t x = geom.size().x / 2;
+        for (int_t y = 0; y < geom.size().y; y++) {
+            cl_float u_cell = vec_u[y * (geom.size().x + 1) + x + 1];
+            cl_float u_left = vec_u[y * (geom.size().x + 1) + x];
+            cl_float u = (u_cell + u_left) / 2;
+
+            cl_float v_cell = vec_v[(y + 1) * geom.size().x + x];
+            cl_float v_down = vec_v[y * geom.size().x + x];
+            cl_float v = (v_cell + v_down) / 2;
+
+            out << u << "," << v << "\n";
+        }
+    }
 
 
 } catch (cl::BuildError const& err) {
@@ -825,13 +852,14 @@ auto parse_cmdline(int argc, char** argv) -> Environment {
             "  -h --help                 Show this help message\n"
             "  -g --geometry <file>      Load geometry file (*.geom)\n"
             "  -p --parameters <file>    Load simulation parameters (*.param)\n"
-            "  -j --json <file>          JSON output file (*.json)\n"
-            "                            If not set, no file is created.\n";
+            "  -j --json <file>          JSON output file for performance measurements (*.json)\n"
+            "                            If not set, no file is created.\n"
+            "  -c --cross-section <file> Vertical u- and v-velocity cross-section (*.csv)\n";
         std::cout << std::endl;
         std::exit(status);
     };
 
-    Environment env{nullptr, nullptr, nullptr};
+    Environment env{nullptr, nullptr, nullptr, nullptr};
     for (int i = 1; i < argc; i++) {
         char* arg = argv[i];
 
@@ -870,6 +898,16 @@ auto parse_cmdline(int argc, char** argv) -> Environment {
                 env.json = argv[i];
             } else {
                 print_usage_and_exit(1, "Error: Missing argument for '--json'.");
+            }
+        }
+
+        else if (  std::strcmp("-c", arg) == 0
+                || std::strcmp("--cross-section", arg) == 0
+        ) {
+            if (++i < argc) {
+                env.cross_section = argv[i];
+            } else {
+                print_usage_and_exit(1, "Error: Missing argument for '--cross-section'.");
             }
         }
 
