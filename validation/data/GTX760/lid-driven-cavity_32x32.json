@@ -1,0 +1,14 @@
+{
+    "solver::iteration::full": {
+        "duration": 1743.4424679999997,
+        "executions": 31626
+    },
+    "tts::full": {
+        "duration": 5629.819525,
+        "executions": 1
+    },
+    "tts::noinit": {
+        "duration": 5253.710869,
+        "executions": 1
+    }
+}
