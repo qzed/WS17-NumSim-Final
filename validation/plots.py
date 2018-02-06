@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import json
 import numpy as np
 import matplotlib.pyplot as plt
@@ -45,25 +47,24 @@ def plot_speedup(datasets, relbase):
     speedup_solver = [(k, calc_speedup(base_solver, o)) for k, o in other_solver]
 
     fig, ax = plt.subplots()
-    fig.set_size_inches(6, 4, forward=True)
 
-    # fig.suptitle("Performance-Messung: Lid-Driven Cavity Flow")
-    # ax.set_title("Speed-up ggü. {}".format(relbase))
-    # ax.set_xlabel("Größe (n$\\times$n)", fontsize=11)
-    # ax.set_ylabel("Speed-up", fontsize=11)
+    fig.suptitle("Performance-Measurements: Lid-Driven Cavity Flow")
+    ax.set_title("Speed-up vs. {}".format(relbase))
+    ax.set_xlabel("Size ($N \\times N$)")
+    ax.set_ylabel("Speed-Up")
 
     xs = [x**2 for x in SIZES]
 
     for k, ys in speedup_tts:
-        plt.plot(xs, ys, label="Komplett")
+        plt.plot(xs, ys, label="All")
 
     for k, ys in speedup_solver:
-        plt.plot(xs, ys, label="Löser")
+        plt.plot(xs, ys, label="Solver (avg.)")
 
     ax.set_xticks([x**2 for x in SIZES_DISP])
     ax.set_xticklabels(["${}^2$".format(x) for x in SIZES_DISP])
-    ax.legend(loc='best', prop={'size': 11})
-    fig.savefig("test.pdf")
+    ax.legend(loc='best')
+    fig.savefig("SpeedUp-GTX760-TR1920X.pdf")
 
 
 if __name__ == '__main__':
