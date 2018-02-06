@@ -406,23 +406,28 @@ int main(int argc, char** argv) try {
                 } else if (e.key.keysym.sym == SDLK_1) {
                     visual = VisualTarget::UVAbsCentered;
                 } else if (e.key.keysym.sym == SDLK_2) {
-                    visual = VisualTarget::U;
+                    visual = VisualTarget::UCentered;
                 } else if (e.key.keysym.sym == SDLK_3) {
-                    visual = VisualTarget::V;
+                    visual = VisualTarget::VCentered;
                 } else if (e.key.keysym.sym == SDLK_4) {
                     visual = VisualTarget::P;
                 } else if (e.key.keysym.sym == SDLK_5) {
-                    visual = VisualTarget::F;
-                } else if (e.key.keysym.sym == SDLK_6) {
-                    visual = VisualTarget::G;
-                } else if (e.key.keysym.sym == SDLK_7) {
-                    visual = VisualTarget::Rhs;
-                } else if (e.key.keysym.sym == SDLK_8) {
-                    visual = VisualTarget::BoundaryTypes;
-                } else if (e.key.keysym.sym == SDLK_9) {
                     visual = VisualTarget::Vorticity;
-                } else if (e.key.keysym.sym == SDLK_0) {
+                } else if (e.key.keysym.sym == SDLK_6) {
                     visual = VisualTarget::Stream;
+
+                } else if (e.key.keysym.sym == SDLK_F1) {
+                    visual = VisualTarget::U;
+                } else if (e.key.keysym.sym == SDLK_F2) {
+                    visual = VisualTarget::V;
+                } else if (e.key.keysym.sym == SDLK_F3) {
+                    visual = VisualTarget::F;
+                } else if (e.key.keysym.sym == SDLK_F4) {
+                    visual = VisualTarget::G;
+                } else if (e.key.keysym.sym == SDLK_F5) {
+                    visual = VisualTarget::Rhs;
+                } else if (e.key.keysym.sym == SDLK_F6) {
+                    visual = VisualTarget::BoundaryTypes;
                 }
             }
         }
@@ -653,46 +658,26 @@ int main(int argc, char** argv) try {
         {   // visualize: write visualization data to intermediate buffer
             cl::Kernel kernel;
 
-            if (visual == VisualTarget::BoundaryTypes) {
-                kernel = {cl_visualize_program, "visualize_boundaries"};
-                kernel.setArg(0, buf_vis);
-                kernel.setArg(1, buf_boundary);
-
-            } else if (visual == VisualTarget::P) {
-                kernel = {cl_visualize_program, "visualize_p"};
-                kernel.setArg(0, buf_vis);
-                kernel.setArg(1, buf_p);
-
-            } else if (visual == VisualTarget::U) {
-                kernel = {cl_visualize_program, "visualize_u"};
-                kernel.setArg(0, buf_vis);
-                kernel.setArg(1, buf_u);
-
-            } else if (visual == VisualTarget::V) {
-                kernel = {cl_visualize_program, "visualize_v"};
-                kernel.setArg(0, buf_vis);
-                kernel.setArg(1, buf_v);
-
-            } else if (visual == VisualTarget::UVAbsCentered) {
+            if (visual == VisualTarget::UVAbsCentered) {
                 kernel = {cl_visualize_program, "visualize_uv_abs_center"};
                 kernel.setArg(0, buf_vis);
                 kernel.setArg(1, buf_u);
                 kernel.setArg(2, buf_v);
 
-            } else if (visual == VisualTarget::F) {
-                kernel = {cl_visualize_program, "visualize_u"};
+            } else if (visual == VisualTarget::UCentered) {
+                kernel = {cl_visualize_program, "visualize_u_center"};
                 kernel.setArg(0, buf_vis);
-                kernel.setArg(1, buf_f);
+                kernel.setArg(1, buf_u);
 
-            } else if (visual == VisualTarget::G) {
-                kernel = {cl_visualize_program, "visualize_v"};
+            } else if (visual == VisualTarget::VCentered) {
+                kernel = {cl_visualize_program, "visualize_v_center"};
                 kernel.setArg(0, buf_vis);
-                kernel.setArg(1, buf_g);
+                kernel.setArg(1, buf_v);
 
-            } else if (visual == VisualTarget::Rhs) {
-                kernel = {cl_visualize_program, "visualize_rhs"};
+            } else if (visual == VisualTarget::P) {
+                kernel = {cl_visualize_program, "visualize_p"};
                 kernel.setArg(0, buf_vis);
-                kernel.setArg(1, buf_rhs);
+                kernel.setArg(1, buf_p);
 
             } else if (visual == VisualTarget::Vorticity) {
                 cl_float2 h = {{ static_cast<cl_float>(geom.mesh().x), static_cast<cl_float>(geom.mesh().y) }};
@@ -711,6 +696,36 @@ int main(int argc, char** argv) try {
                 kernel.setArg(1, buf_u);
                 kernel.setArg(2, buf_v);
                 kernel.setArg(3, h);
+
+            } else if (visual == VisualTarget::U) {
+                kernel = {cl_visualize_program, "visualize_u"};
+                kernel.setArg(0, buf_vis);
+                kernel.setArg(1, buf_u);
+
+            } else if (visual == VisualTarget::V) {
+                kernel = {cl_visualize_program, "visualize_v"};
+                kernel.setArg(0, buf_vis);
+                kernel.setArg(1, buf_v);
+
+            } else if (visual == VisualTarget::F) {
+                kernel = {cl_visualize_program, "visualize_u"};
+                kernel.setArg(0, buf_vis);
+                kernel.setArg(1, buf_f);
+
+            } else if (visual == VisualTarget::G) {
+                kernel = {cl_visualize_program, "visualize_v"};
+                kernel.setArg(0, buf_vis);
+                kernel.setArg(1, buf_g);
+
+            } else if (visual == VisualTarget::Rhs) {
+                kernel = {cl_visualize_program, "visualize_rhs"};
+                kernel.setArg(0, buf_vis);
+                kernel.setArg(1, buf_rhs);
+
+            } else if (visual == VisualTarget::BoundaryTypes) {
+                kernel = {cl_visualize_program, "visualize_boundaries"};
+                kernel.setArg(0, buf_vis);
+                kernel.setArg(1, buf_boundary);
             }
 
             auto range = cl::NDRange(geom.size().x, geom.size().y);
