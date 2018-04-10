@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.7.2)
 project(numsim)
 
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+
 find_package(OpenCL REQUIRED)
 
 find_package(SDL2 REQUIRED)
