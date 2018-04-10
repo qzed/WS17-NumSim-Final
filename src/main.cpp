@@ -336,7 +336,6 @@ int main(int argc, char** argv) try {
     VisualTarget visual = VisualTarget::UVAbsCentered;
 
     bool running = true;
-    bool cont = false;
     while (running) {
         SDL_Event e;
 
@@ -355,9 +354,7 @@ int main(int argc, char** argv) try {
             }
 
             else if (e.type == SDL_KEYDOWN && e.key.windowID == window.id()) {
-                if (e.key.keysym.sym == SDLK_RETURN) {
-                    cont = true;
-                } else if (e.key.keysym.sym == SDLK_l) {
+                if (e.key.keysym.sym == SDLK_l) {
                     visualizer.set_sampler(vis::SamplerType::Linear);
                 } else if (e.key.keysym.sym == SDLK_n) {
                     visualizer.set_sampler(vis::SamplerType::Nearest);

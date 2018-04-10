@@ -86,7 +86,7 @@ void Texture::image_2d(GLint level, GLint internal_format, Extent2d size, GLenum
 {
     glTexImage2D(m_target, level, internal_format, size.x, size.y, 0, format, type, pixels);
     opengl::check_error();
-};
+}
     
 void Texture::bind() const {
     glBindTexture(m_target, m_handle);
